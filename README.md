@@ -43,9 +43,9 @@ $ ./limaoim -c configs/config.toml
 
 Android SDK: [Android SDK](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
 
-iOS SDK: Star到500开源
+iOS SDK: Star到500开源 (请帮我们点点Star，感谢 😄)
 
-JS SDK: Star到1000开源
+JS SDK: Star到1000开源 (请帮我们点点Star，感谢😄)
 
 注意： SDK的使用请查看[文档](http://limao.io/docs)
 
