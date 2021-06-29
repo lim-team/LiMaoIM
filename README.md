@@ -12,7 +12,7 @@
 </ul>
 </p>
 
-[![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://limaoim.io/docs)
+[![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://limao.io/docs)
 [![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
 ### 特点
@@ -127,13 +127,6 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 ```
 $ docker-compose up 
 ```
-
-
-### 文档
-
-[LiMaoIM协议](./docs/protocol.md)
-
-***架构***
 
 
 ### 案例
