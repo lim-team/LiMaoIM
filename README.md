@@ -33,7 +33,7 @@
 
 [获取limaoim执行文件](./INSTALL.md)
 
-#### 运行
+#### 运行服务端
 
 ```
 $ ./limaoim -c configs/config.toml
@@ -130,6 +130,10 @@ $ docker-compose up
 
 
 ### 案例
+
+***案例体验***
+
+<img  src="./docs/demo_qrcode.png" width="250" />
 
 ***用此通讯端做的自研的IM产品案例截图***
 
