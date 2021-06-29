@@ -18,25 +18,7 @@
 
 ### 快速入门
 
-#### 安装
-
-安装主要是获取到limaoim执行文件
-
-***直接下载***
-
-[Linux系统](https://baidu.com)
-
-[Mac系统 ](https://baidu.com/)
-
-注意：window暂不支持
-
-#### 源码编译
-
-```
- $ git clone https://github.com/lim-team/limaoim
- $ cd limaoim
- $ go build cmd/app/main.go -o limaoim
-```
+[获取limaoim执行文件](./INSTALL.md)
 
 #### 运行(一键运行)
 
@@ -59,7 +41,6 @@ $ ./limaoim -c configs/config.toml
 ```
 goos: darwin
 goarch: amd64
-pkg: github.com/lim-team/LiMaoIM/internal/lim
 cpu: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz
 
 SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s - 15.768us/op
@@ -70,7 +51,7 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 
 ### 快速试玩
 
-***登录test用户***
+***登录test1,test2 test2向test1发送一条消息“this is test”***
 
 ```
 // 登录test1
