@@ -2,14 +2,17 @@
 
 本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务
 <p align="center">
-<img align="left" width="175" src="./docs/logo.png">
+<img align="left" width="100" src="./docs/logo.png">
 <ul>
 <li><strong>源码</strong>: https://github.com/lim-team/LiMaoIM</li>
 <li><strong>通讯协议</strong>: <a href="./docs/protocol.md">LiMaoIM协议</a></li>
-<li><strong>Issues</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
+<li><strong>提问</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
 <li><strong>文档</strong>: http://limaoim.io/docs</li>
 </ul>
 </p>
+
+[![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://limaoim.io/docs)
+[![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
 ### 特点
 
