@@ -1,6 +1,15 @@
 ## 狸猫IM（LiMaoIM） 一切很简单
 
 本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务
+<p align="center">
+<img align="left" width="175" src="./docs/logo.png">
+<ul>
+<li><strong>源码</strong>: https://github.com/lim-team/LiMaoIM</li>
+<li><strong>通讯协议</strong>: <a href="./docs/protocol.md">LiMaoIM协议</a></li>
+<li><strong>Issues</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
+<li><strong>文档</strong>: http://limaoim.io/docs</li>
+</ul>
+</p>
 
 ### 特点
 
@@ -127,7 +136,7 @@ $ docker-compose up
 
 ***用此通讯端做的自研的IM产品案例截图***
 
-<p align="center">
+<p align="left">
 <img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receive_and_send.gif" width="350" height="350" alt="收发消息演示"/>
 
 <img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/typing.gif" width="350" height="350" alt="正在输入"/>
