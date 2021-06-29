@@ -20,7 +20,7 @@
 
 [获取limaoim执行文件](./INSTALL.md)
 
-#### 运行(一键运行)
+#### 运行
 
 ```
 $ ./limaoim -c configs/config.toml
