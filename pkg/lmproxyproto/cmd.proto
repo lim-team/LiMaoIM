@@ -1,0 +1,122 @@
+syntax = "proto3";
+option go_package = "./;lmproxyproto";
+
+enum Status {
+    Error = 0;
+    Success = 1;
+}
+
+enum Role {
+    Unknown = 0;
+    Master = 1;
+    Slave = 2;
+}
+
+message Node {
+    int32 nodeID = 1; // 节点ID
+    string  nodeAddr = 2; // 节点地址
+    string tcpAddr = 3;  // 节点tcp对外地址
+    string wsAddr = 4;  // 节点websocket对外地址
+    int32  weight = 5;  // 节点权重
+    Role role = 6;
+    bool join = 7; // 是否是新加入的节点
+   
+}
+
+message ConnectReq{
+    int32 nodeID = 1; // 节点ID
+}
+
+message ConnectInfo {
+    int32 nodeID = 1; // 节点ID
+    int32 clusterID = 2; // 分布式ID
+}
+
+message  ClusterConfigReq {
+    int32 clusterID = 3;
+}
+
+
+enum ClusterState {
+       WaitReady = 0;
+       Ready = 1;
+       Migration = 2;
+}  
+
+message ClusterConfig {
+    int32 version  =1; // 配置版本
+    int32 slotCount =2; // slot 总数量
+    int32 clusterID = 3; // cluster id
+    int32 replica = 4; // 副本数
+    ClusterState state = 5; // 状态
+    bytes  slots = 6;    // slot bitmap
+    repeated Node nodes = 7; // 节点信息
+    int32 leaderID = 8; // 领导节点的id
+    int32 importClusterID = 9; // 要导入的分布式ID
+    bytes importWill = 10; // 将要引入的slots
+    bytes exportWill = 11; // 将要导出的slots
+    bytes exporting = 12; // 正在导出的slot（正在导出的slot将被锁定，不接受数据）
+    ExportedList exportedList = 13; // 已导出的slot
+
+}
+
+message  ClusterConfigListResp {
+   repeated ClusterConfig clusterConfigs = 1;
+}
+
+
+
+
+message Exported {
+    string no = 1;
+    bytes slots = 2; // 已导出的slots
+    string path = 3; // 对应的备份路径
+}
+
+
+
+message  ExportedList {
+    repeated Exported exported = 1; 
+}
+
+
+message Exporting {
+    bytes slots = 1; // 导出中的slots
+}
+
+
+
+message Imported {
+    string no = 1;
+    bytes slots = 2; // 已导入的slots
+}
+
+message ClusterConfigResp {
+    int32 version  =1; // 配置版本
+}
+
+
+message ClusterConfigChange {
+    int32 clusterID =1;
+    int32 version = 2;
+}
+
+
+message Ping {
+    int32 version = 1; //配置版本
+    int32 clusterID = 2; // 分布式ID
+    int32 leaderID = 3; // 领导ID
+    int32 totalVersion = 4; // 所有分布式配置的总版本（集群内的所有clusterConfig的version累加的值）
+
+}
+
+message RegisterNodeResp {
+    Status status = 1; // 状态 0.失败 1.成功
+    string reason = 2; // 原因
+    int32 clusterID = 3; // 分布式ID
+}
+
+message StatusResp {
+    Status status = 1; // 状态 0.失败 1.成功
+    string reason = 2; // 原因
+}

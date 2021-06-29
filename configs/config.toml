@@ -1,0 +1,39 @@
+# mode 模式 debug,test,release
+mode = "release"
+# tcp服务的监听地址，客户端通过此地址与服务端建立长连接
+addr="tcp://0.0.0.0:7677"
+# websocket服务监听地址 web端通过此地址与服务端建立长连接
+wsAddr="0.0.0.0:2122" 
+# api服务监听地址 为了安全起见，此地址不要对外网开发，仅仅业务服务调用此api
+httpAddr="127.0.0.1:1516"
+# dataDir 数据存储目录
+dataDir = ""
+# webhook 地址 如果配置了此地址，IM的一些数据将会推送到此地址上，比如：消息通知，用户在线离线状态，等等 具体请看webhook相关文档
+webhook = ""
+# datasource 外部数据源地址，如果此配置有值，则频道信息，黑明单，白明单，用户token等等一些元数据将通过此地址获取，本服务将不再存储此类元数据 具体清看datasource数据源相关文档
+datasource= ""
+# conversationMaxCount 每个用户最近会话最大数量 只保留每个用户指定数量的最新的最近会话。
+conversationMaxCount = 100
+
+# messageNotifyMaxCount 消息通知webhook每次通知最大消息数量
+messageNotifyMaxCount= 20
+# messageNotifyScanInterval 消息通知扫描间隔 默认为 500毫秒
+messageNotifyScanInterval="500ms"
+# maxMessagePerSecond 速率限制 每秒最大接受多少消息 默认为每秒10万
+maxMessagePerSecond = 100000
+# conversationSaveInterval 最近会话保存间隔 默认5分钟保存一次最近会话到数据库
+conversationSaveInterval="5m"
+# conversationSaveOnce 最近会话多少用户变动保存一次 ， 默认 当100个用户的最近会话有变动的时候，保存到数据库
+conversationSaveOnce = 100
+
+
+# segmentMaxBytes 日志段文件最大大小，超过此大小自动创建新的日志文件 默认为 1G
+segmentMaxBytes= 1073741824 
+# messagePoolSize 消息池大小，处理消息的协程池大小
+messagePoolSize = 102400
+# deliveryMsgPoolSize 投递消息的协程池大小
+deliveryMsgPoolSize = 102400
+# msgTimeout 消息投递超时时间 默认为 1分钟
+msgTimeout = "1m"
+# timeoutScanInterval 消息超时扫描间隔
+timeoutScanInterval = "1s"

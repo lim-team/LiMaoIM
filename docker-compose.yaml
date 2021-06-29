@@ -1,0 +1,11 @@
+version: '3.1'
+services:
+  limao:
+    build:
+      context: .
+    ports:
+      - 7677:7677
+      - 2122:2122
+      - 1516:1516
+    restart: always
+  
