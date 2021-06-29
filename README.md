@@ -15,7 +15,7 @@
 [![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://limao.io/docs)
 [![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
-### 特点
+## 特点
 
 * go语言开发，高性能与易维护兼得。
 * 底层100%开源。
@@ -29,7 +29,7 @@
 * 消息分区永久存储，卸载设备消息不丢。
 * 支持读模式的离线拉取
 
-### 快速入门
+## 快速入门
 
 [获取limaoim执行文件](./INSTALL.md)
 
@@ -39,7 +39,17 @@
 $ ./limaoim -c configs/config.toml
 ```
 
-### 快速试玩
+#### 客户端SDK
+
+Android SDK: [Android SDK](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
+
+iOS SDK: Star到500开源
+
+JS SDK: Star到1000开源
+
+注意： SDK的使用请查看[文档](http://limao.io/docs)
+
+## 快速试玩
 
 ***登录test1,test2 test2向test1发送一条消息“this is test”***
 
