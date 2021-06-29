@@ -1,4 +1,4 @@
-## 狸猫IM（LiMaoIM） 一切都很简单
+## 狸猫IM（LiMaoIM） 一切很简单
 
 本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务
 
@@ -46,7 +46,7 @@ $ ./limaoim -c configs/config.toml
 
 ### 性能测试
 
-一键测试
+一键压测
 
 ```
 ./bench.sh
