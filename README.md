@@ -5,7 +5,7 @@
 ### 特点
 
 * go语言开发，高性能与易维护兼得。
-* 100%开源，底裤都不留！
+* 底层100%开源。
 * 二进制协议(支持自定义)，包大小极小，最小心跳包只有1byte，耗电小，流量小，传输速度快。
 * 消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
 * 采用tcp协议+ack机制保证消息稳定可靠不丢。
@@ -124,7 +124,7 @@ $ docker-compose up
 
 ### 案例
 
-***截图***
+***用此通讯端做的自研的IM产品案例截图***
 
 <img src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receive_and_send.gif" width="400" height="400" alt="收发消息演示"/>
 
