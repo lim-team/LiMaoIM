@@ -46,9 +46,6 @@ cpu: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz
 SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s - 15.768us/op
 ```
 
-
-单机同时在线
-
 ### 快速试玩
 
 ***登录test1,test2 test2向test1发送一条消息“this is test”***
