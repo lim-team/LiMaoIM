@@ -127,6 +127,7 @@ $ docker-compose up
 
 ***用此通讯端做的自研的IM产品案例截图***
 
+<p>
 <img align="left" src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receive_and_send.gif" width="400" height="400" alt="收发消息演示"/>
 
 <img align="left" src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/typing.gif" width="400" height="400" alt="正在输入"/>
@@ -146,5 +147,5 @@ $ docker-compose up
 <img align="left" src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/p2pcall.gif" width="400" height="400" alt="单人音视频"/>
 
 <img align="left" src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/multiplecall.gif" width="400" height="400" alt="多人音视频"/>
-
+</p>
 ***下载***
