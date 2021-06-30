@@ -13,7 +13,7 @@
 #### 源码编译
 
 ```
- $ git clone https://github.com/lim-team/limaoim
+ $ git clone https://github.com/lim-team/LiMaoIM.git
  $ cd limaoim
  $ make
 ```
