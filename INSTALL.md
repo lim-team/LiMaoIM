@@ -5,9 +5,8 @@
 
 ***直接下载***
 
-[Linux系统](https://baidu.com)
+[下载地址](https://github.com/lim-team/LiMaoIM/releases)
 
-[Mac系统 ](https://baidu.com/)
 
 注意：window暂不支持
 
