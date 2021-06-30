@@ -36,7 +36,7 @@
 #### 运行服务端
 
 ```
-$ ./limaoim -c configs/config.toml
+$ ./limaoim  (或者 ./limaoim -c configs/config.toml)
 ```
 
 #### 客户端SDK
