@@ -16,5 +16,5 @@
 ```
  $ git clone https://github.com/lim-team/limaoim
  $ cd limaoim
- $ go build cmd/app/main.go -o limaoim
+ $ make
 ```
