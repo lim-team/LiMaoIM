@@ -1,0 +1,574 @@
+swagger: "2.0"
+info:
+  description: "狸猫IM API"
+  version: "1.0.0"
+  title: "狸猫IM API"
+host: "127.0.0.1:1516"
+tags:
+  - name: "user"
+    description: "用户"
+  - name: "channel"
+    description: "频道"   
+  - name: "message"
+    description: "消息"  
+schemes:
+  - "http"
+
+paths:
+  /user/token:
+    post:
+      tags:
+        - "user"
+      summary: "更新用户token"
+      description: "更新用户token"
+      operationId: "updateToken"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            properties:
+              uid:
+                type: string
+                description: "用户uid"
+              token: 
+                 type: string
+                 description: "用户token" 
+              device_flag:
+                 type: "integer"
+                 format: "uint8"
+                 description: "设备标示 0.APP 1.WEB"
+              device_level:
+                 type: "integer"
+                 format: "uint8"
+                 description: "设备等级 0.为从设备 1.为主设备 （主设备登录会互斥，从设备等同时登录）"
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'
+  /user/onlinestatus:
+    post:
+      tags:
+        - "user"
+      summary: "获取用户在线状态"
+      description: "获取用户在线状态"
+      operationId: "getOnlineStatus"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: array
+            description: "用户uid集合"
+            items:
+              type: "string"
+      responses:
+        200:
+          description: "返回"
+          schema:
+            properties:
+              status:
+                type: integer
+                description: "状态"
+                default: 200
+              data:
+                type: array
+                description: "在线的uid集合"
+                items:
+                  type: "string"
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'  
+  /message/send:
+    post:
+      tags:
+        - "message"
+      summary: "发送消息"
+      description: "发送消息"
+      operationId: "send"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              header:
+                type: "object"
+                description: "消息header"
+                properties:
+                  no_persist:
+                    type: integer
+                    format: int
+                    description: "是否不存储 0.否 1.是"
+                  red_dot:
+                    type: integer
+                    format: int
+                    description: "是否显示红点 0.否 1.是"
+                  sync_once:
+                    type: integer
+                    format: int
+                    description: "此消息只被同步或被消费一次(写模式)"
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              from_uid:
+                type: "string"
+                description: "模拟发送者UID"
+              subscribers:
+                type: "array"
+                description: "订阅者，如果此字段有值，则消息只发给此字段内的uid"
+                items:
+                  type: "string"
+              payload:
+                type: "string"
+                description: "消息内容(base64编码)"
+              client_msg_no:
+                type: "string"
+                description: "客户端消息编号（相同编号，客户端只会显示一条）(可为空)"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            properties:
+              status:
+                type: integer
+                description: "状态"
+                default: 200
+              data:
+                type: array
+                description: "在线的uid集合"
+                items:
+                  type: "string"
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'
+  /message/sync:
+    post:
+      tags:
+        - "message"
+      summary: "同步消息"
+      description: "同步消息"
+      operationId: "msgSync"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              uid:     
+                 type: "string"
+                 description: "用户uid"
+              message_seq:
+                type: "integer"
+                format: "uint32"
+                description: "客户端最大消息序列号"
+              limit:
+                type: "integer"
+                format: "int64"
+                description: "消息数量限制"
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/MessageResp'
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'  
+  /message/syncack:
+    post:
+      tags:
+        - "message"
+      summary: "消息同步回执"
+      description: "消息同步回执"
+      operationId: "syncack"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              uid:     
+                 type: "string"
+                 description: "用户uid"
+              last_message_seq:
+                type: "integer"
+                format: "uint32"
+                description: "最后一次同步的message_seq"
+                  
+      responses:
+        200:
+          description: "成功"
+          schema:
+            $ref: '#/definitions/response'
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'           
+  /channel:
+    post:
+      tags:
+        - "channel"
+      summary: "创建频道"
+      description: "创建频道"
+      operationId: "channelCreate"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              subscribers:
+                type: "array"
+                description: "订阅者集合 "
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response' 
+  /channel/subscriber_add:
+    post:
+      tags:
+        - "channel"
+      summary: "添加订阅者"
+      description: "添加订阅者"
+      operationId: "addSubscriber"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              subscribers:
+                type: "array"
+                description: "订阅者集合"
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'   
+  /channel/subscriber_remove:
+    post:
+      tags:
+        - "channel"
+      summary: "移除订阅者"
+      description: "移除订阅者"
+      operationId: "removeSubscriber"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              subscribers:
+                type: "array"
+                description: "订阅者集合"
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'
+  /channel/blacklist_add:
+    post:
+      tags:
+        - "channel"
+      summary: "添加频道黑名单"
+      description: "添加频道黑名单"
+      operationId: "blacklistAdd"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              uids:
+                type: "array"
+                description: "用户uid集合"
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response' 
+  /channel/blacklist_remove:
+    post:
+      tags:
+        - "channel"
+      summary: "移除频道黑名单"
+      description: "移除频道黑名单"
+      operationId: "blacklistRemove"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              uids:
+                type: "array"
+                description: "用户uid集合"
+                items:
+                  type: "string"
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/response'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response' 
+  /channel/messagesync:
+    post:
+      tags:
+        - "channel"
+      summary: "同步频道消息"
+      description: "同步频道消息"
+      operationId: "syncMessages"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "req"
+          description: "请求"
+          required: true
+          schema:
+            type: object
+            properties:
+              login_uid:     
+                 type: "string"
+                 description: "当前登录用户的uid"
+              channel_id:     
+                 type: "string"
+                 description: "频道ID"
+              channel_type:
+                type: "integer"
+                format: "uint8"
+                description: "频道类型"
+              min_message_seq:
+                type: "integer"
+                format: "uint32"
+                description: "最小序列号"
+              max_message_seq:
+                type: "integer"
+                format: "uint32"
+                description: "最大序列号" 
+              limit:
+                type: "integer"
+                format: "int"
+                description: "每次同步数量限制"  
+              reverse:
+                type: "integer"
+                format: "int"
+                description: "是否反转查询"    
+                  
+      responses:
+        200:
+          description: "返回"
+          schema:
+            $ref: '#/definitions/MessageResp'          
+        400:
+          description: '错误'
+          schema:
+            $ref: '#/definitions/response'          
+        
+securityDefinitions:
+  token:
+    type: "apiKey"
+    in: "header"
+    name: "token"
+    description: "用户token"
+definitions:
+  MessageResp:
+    type: "object"
+    properties:
+      header:
+        type: "object"
+        description: "消息header"
+        properties:
+          no_persist:
+            type: integer
+            format: int
+            description: "是否不存储 0.否 1.是"
+          red_dot:
+            type: integer
+            format: int
+            description: "是否显示红点 0.否 1.是"
+          sync_once:
+            type: integer
+            format: int
+            description: "此消息只被同步或被消费一次"
+      message_id:
+        type: integer
+        format: uint64
+        description: 服务端的消息ID(全局唯一)
+      message_seq:
+        type: integer
+        format: uint32
+        description: 消息序列号 （用户唯一，有序递增）
+      from_uid:
+        type: string
+        description: 发送者UID
+      to_uid:
+        type: string
+        description: 接受者uid
+      channel_id:
+        type: string
+        description: 频道ID
+      channel_type:
+        type: integer
+        format: uint8
+        description: 频道类型
+      timestamp:
+        type: integer
+        format: int32
+        description: 服务器消息时间戳(10位，到秒)
+      payload:
+        type: string
+        description: 消息内容(base64编码的)      
+  response:
+    type: "object"
+    properties:
+      status:
+        type: integer
+        format: int
+      msg:
+        type: "string"
+        

@@ -142,7 +142,8 @@ func (l *LiMao) print() {
 	}
 	l.Info("Socket服务", zap.String("addr", l.opts.Addr))
 	l.Info("WebSocket服务", zap.String("wsAddr", l.opts.WSAddr))
-	l.Info("http服务", zap.String("httpAddr", l.opts.HTTPAddr))
+	l.Info("HTTP服务", zap.String("httpAddr", fmt.Sprintf("http://%s", l.opts.HTTPAddr)))
+	l.Info("API文档地址", zap.String("apidocs", fmt.Sprintf("http://%s/api", l.opts.HTTPAddr)))
 }
 
 // Stop Stop

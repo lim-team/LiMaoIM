@@ -84,8 +84,11 @@ func (f *FileDB) GetChannel(channelID string, channelType uint8) (map[string]int
 	if err != nil {
 		return nil, err
 	}
+	if value == nil {
+		return nil, nil
+	}
 	var data map[string]interface{}
-	err = util.ReadJSONByByte(value, data)
+	err = util.ReadJSONByByte(value, &data)
 	if err != nil {
 		return nil, err
 	}

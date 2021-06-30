@@ -58,7 +58,7 @@ func NewOptions() *Options {
 		NodeID:          1,
 		Addr:            "tcp://0.0.0.0:7677",
 		WSAddr:          "0.0.0.0:2122",
-		HTTPAddr:        "127.0.0.1:1516",
+		HTTPAddr:        "0.0.0.0:1516",
 		SlotCount:       256,
 		SegmentMaxBytes: 1024 * 1024 * 1024,
 		CMDSendTimeout: duration{
