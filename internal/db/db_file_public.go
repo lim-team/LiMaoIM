@@ -58,6 +58,9 @@ func (f *FileDB) GetUserToken(uid string, deviceFlag lmproto.DeviceFlag) (string
 	if err != nil {
 		return "", 0, err
 	}
+	if len(value) == 0 {
+		return "", 0, nil
+	}
 	var resultMap map[string]string
 	err = util.ReadJSONByByte(value, &resultMap)
 	if err != nil {

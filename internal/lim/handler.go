@@ -56,6 +56,15 @@ func (s *PacketHandler) handleConnect(c limnet.Conn, connectPacket *lmproto.Conn
 			s.writeConnackError(c)
 			return
 		}
+		if token == "" { // 当token为空 说明此uid没注册过，则注册
+			err = s.l.store.UpdateUserToken(connectPacket.UID, connectPacket.DeviceFlag, lmproto.DeviceLevelMaster, connectPacket.Token)
+			if err != nil {
+				s.Error("Update user token fail", zap.Error(err), zap.String("packet", connectPacket.String()))
+				s.writeConnackError(c)
+				return
+			}
+			token = connectPacket.Token
+		}
 		// token不匹配
 		if token != connectPacket.Token {
 			s.Error("The token does not match, the connection failed", zap.String("packet", connectPacket.String()))
