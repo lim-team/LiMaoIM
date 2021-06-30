@@ -85,7 +85,7 @@ $ >send "this is test" -to test1
 
 本人测试结果如下：
 
-达到每秒63420万条消息的吞吐量，接近redis的压测数据！
+达到每秒63420条消息的吞吐量，接近redis的压测数据！
 
 ```
 goos: darwin

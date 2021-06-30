@@ -12,6 +12,8 @@
  $ make
 ```
 
+执行完后，在项目根目录下找到limaoim执行文件
+
 #### 第二种方式：直接下载
 
 [下载地址](https://github.com/lim-team/LiMaoIM/releases)
