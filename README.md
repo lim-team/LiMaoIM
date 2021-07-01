@@ -1,6 +1,6 @@
 ## 狸猫IM（LiMaoIM） 一切很简单
 
-本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务
+本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务，完全自定义协议的聊天(Chat)系统
 <p align="center">
 <img align="left" width="160" src="./docs/logo.png">
 <ul>
