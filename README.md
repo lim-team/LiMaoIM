@@ -9,7 +9,7 @@
 <li><strong>源码</strong>: https://github.com/lim-team/LiMaoIM</li>
 <li><strong>通讯协议</strong>: <a href="./docs/protocol.md">LiMaoIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
-<li><strong>文档</strong>: http://limao.io/docs</li>
+<li><strong>文档</strong>: http://www.limao.io/docs</li>
 </ul>
 </p>
 
