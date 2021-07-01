@@ -34,7 +34,6 @@ func NewChannelManager(l *LiMao) *ChannelManager {
 
 // GetChannel 获取频道
 func (cm *ChannelManager) GetChannel(channelID string, channelType uint8) (*Channel, error) {
-
 	if strings.HasSuffix(channelID, cm.l.opts.TmpChannelSuffix) {
 		return cm.GetTmpChannel(channelID, channelType)
 	}

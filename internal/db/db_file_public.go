@@ -334,7 +334,7 @@ func (f *FileDB) GetMessages(channelID string, channelType uint8, offset uint32,
 		if err != nil {
 			return err
 		}
-		messages = append(messages)
+		messages = append(messages, m)
 		return nil
 	})
 	if err != nil {

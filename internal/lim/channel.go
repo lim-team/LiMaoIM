@@ -70,7 +70,94 @@ func NewChannel(channelInfo *ChannelInfo, l *LiMao) *Channel {
 
 // LoadData load data
 func (c *Channel) LoadData() error {
+	if err := c.initSubscribers(); err != nil { // 初始化订阅者
+		return err
+	}
+	if err := c.initBlacklist(); err != nil { // 初始化黑名单
+		return err
+	}
+	if err := c.initWhitelist(); err != nil { // 初始化白名单
+		return err
+	}
+	return nil
+}
 
+// 初始化订阅者
+func (c *Channel) initSubscribers() error {
+	if c.l.opts.HasDatasource() && c.ChannelType != ChannelTypePerson {
+		subscribers, err := c.l.datasource.GetSubscribers(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("从数据源获取频道订阅者失败！", zap.Error(err))
+			return err
+		}
+		if len(subscribers) > 0 {
+			for _, subscriber := range subscribers {
+				c.subscriberMap.Store(subscriber, true)
+			}
+		}
+	} else {
+		// ---------- 订阅者  ----------
+		subscribers, err := c.l.store.GetSubscribers(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("获取频道订阅者失败！", zap.Error(err))
+			return err
+		}
+		if len(subscribers) > 0 {
+			for _, subscriber := range subscribers {
+				c.subscriberMap.Store(subscriber, true)
+			}
+		}
+	}
+	return nil
+}
+
+// 初始化黑名单
+func (c *Channel) initBlacklist() error {
+	var blacklists []string
+	var err error
+	if c.l.opts.HasDatasource() {
+		blacklists, err = c.l.datasource.GetBlacklist(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("从数据源获取黑名单失败！", zap.Error(err))
+			return err
+		}
+	} else {
+		blacklists, err = c.l.store.GetDenylist(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("获取黑名单失败！", zap.Error(err))
+			return err
+		}
+	}
+	if len(blacklists) > 0 {
+		for _, uid := range blacklists {
+			c.blacklist.Store(uid, true)
+		}
+	}
+	return nil
+}
+
+// 初始化黑名单
+func (c *Channel) initWhitelist() error {
+	var whitelists []string
+	var err error
+	if c.l.opts.HasDatasource() {
+		whitelists, err = c.l.datasource.GetWhitelist(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("从数据源获取白名单失败！", zap.Error(err))
+			return err
+		}
+	} else {
+		whitelists, err = c.l.store.GetAllowlist(c.ChannelID, c.ChannelType)
+		if err != nil {
+			c.Error("获取白名单失败！", zap.Error(err))
+			return err
+		}
+	}
+	if len(whitelists) > 0 {
+		for _, uid := range whitelists {
+			c.whitelist.Store(uid, true)
+		}
+	}
 	return nil
 }
 
@@ -131,7 +218,6 @@ func (c *Channel) PutMessage(m *Message) error {
 		subscribers = append(subscribers, c.GetAllSubscribers()...)
 	}
 	c.Debug("subscribers", zap.Any("subscribers", subscribers))
-
 	c.l.conversationManager.PushMessage(m, subscribers)
 	c.l.startDeliveryMsg(m, subscribers...)
 	return nil
@@ -186,5 +272,37 @@ func (c *Channel) RemoveDenylist(uids []string) {
 	}
 	for _, uid := range uids {
 		c.blacklist.Delete(uid)
+	}
+}
+
+// ---------- 白名单 ----------
+
+// AddWAllowlist 添加白名单
+func (c *Channel) AddWAllowlist(uids []string) {
+	if len(uids) == 0 {
+		return
+	}
+	for _, uid := range uids {
+		c.whitelist.Store(uid, true)
+	}
+
+}
+
+// SetAllowlist SetAllowlist
+func (c *Channel) SetAllowlist(uids []string) {
+	c.whitelist.Range(func(key interface{}, value interface{}) bool {
+		c.whitelist.Delete(key)
+		return true
+	})
+	c.AddDenylist(uids)
+}
+
+// RemoveAllowlist 移除白名单
+func (c *Channel) RemoveAllowlist(uids []string) {
+	if len(uids) == 0 {
+		return
+	}
+	for _, uid := range uids {
+		c.whitelist.Delete(uid)
 	}
 }

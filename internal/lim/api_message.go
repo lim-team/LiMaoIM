@@ -3,6 +3,7 @@ package lim
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ func NewMessageAPI(lim *LiMao) *MessageAPI {
 // Route route
 func (m *MessageAPI) Route(r *lmhttp.LMHttp) {
 	r.POST("/message/send", m.send)
+	r.POST("/message/sync", m.syncMessages)
 }
 
 func (m *MessageAPI) send(c *lmhttp.Context) {
@@ -140,4 +142,40 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		return errors.New("将消息放入频道内失败！")
 	}
 	return nil
+}
+
+func (m *MessageAPI) syncMessages(c *lmhttp.Context) {
+	var req struct {
+		UID              string `json:"uid"` // 当前登录用户的uid
+		ChannelID        string `json:"channel_id"`
+		ChannelType      uint8  `json:"channel_type"`
+		OffsetMessageSeq uint32 `json:"offset_message_seq"` // 偏移序号
+		EndMessageSeq    uint32 `json:"end_message_seq"`    // 结束偏移量
+		Limit            int    `json:"limit"`              // 每次同步数量限制
+		Reverse          int    `json:"reverse"`            // 是否反转查询
+	}
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+
+	fakeChannelID := req.ChannelID
+	if req.ChannelType == ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(req.UID, req.ChannelID)
+	}
+	messages, err := m.l.store.GetMessagesWithOptions(fakeChannelID, req.ChannelType, req.OffsetMessageSeq, uint64(req.Limit), req.Reverse == 1, req.EndMessageSeq)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	messageResps := make([]*MessageResp, 0, len(messages))
+	if len(messages) > 0 {
+		for _, message := range messages {
+			messageResp := &MessageResp{}
+			messageResp.from(message)
+			messageResps = append(messageResps, messageResp)
+		}
+	}
+	c.JSON(http.StatusOK, messageResps)
 }

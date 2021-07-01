@@ -95,7 +95,6 @@ type syncUserConversationResp struct {
 	Timestamp       int64          `json:"timestamp"`          // 最后一次会话时间
 	LastMsgSeq      uint32         `json:"last_msg_seq"`       // 最后一条消息seq
 	LastClientMsgNo string         `json:"last_client_msg_no"` // 最后一次消息客户端编号
-	OffsetMsgSeq    int64          `json:"offset_msg_seq"`     // 偏移位的消息seq
 	Version         int64          `json:"version"`            // 数据版本
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
@@ -206,4 +205,30 @@ func (r blacklistReq) Check() error {
 		return errors.New("uids不能为空！")
 	}
 	return nil
+}
+
+type whitelistReq struct {
+	ChannelID   string   `json:"channel_id"`   // 频道ID
+	ChannelType uint8    `json:"channel_type"` // 频道类型
+	UIDs        []string `json:"uids"`         // 订阅者
+}
+
+func (r whitelistReq) Check() error {
+	if r.ChannelID == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if r.ChannelType == 0 {
+		return errors.New("频道类型不能为0！")
+	}
+	if len(r.UIDs) <= 0 {
+		return errors.New("uids不能为空！")
+	}
+	return nil
+}
+
+type syncMessageResp struct {
+	OffsetMessageSeq uint32         `json:"offset_message_seq"` // 偏移序号
+	EndMessageSeq    uint32         `json:"end_message_seq"`    // 结束偏移量
+	More             int            `json:"more"`               // 是否还有更多 1.是 0.否
+	Messages         []*MessageResp `json:"messages"`           // 消息数据
 }

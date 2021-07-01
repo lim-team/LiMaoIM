@@ -301,7 +301,7 @@ func (cm *ConversationManager) GetConversations(uid string, version int64) []*db
 	conversationCache := cm.getUserConversationCache(uid)
 
 	conversationSlice := conversationSlice{}
-	fmt.Println("conversationCache.Len()--->", conversationCache.Len())
+
 	if conversationCache.Len() == 0 {
 		var err error
 		conversations, err := cm.getUserAllConversationMapFromStore(uid)
@@ -314,6 +314,7 @@ func (cm *ConversationManager) GetConversations(uid string, version int64) []*db
 			conversationCache.Add(channelKey, conversation)
 
 		}
+		fmt.Println("conversations.Len()--->", conversations, uid)
 	}
 	for _, key := range conversationCache.Keys() {
 		conversationObj, ok := conversationCache.Get(key)

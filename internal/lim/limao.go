@@ -47,6 +47,7 @@ type LiMao struct {
 	systemUIDManager    *SystemUIDManager // System uid management, system uid can send messages to everyone without any restrictions
 	conversationManager *ConversationManager
 	onlineStatusWebhook *OnlineStatusWebhook
+	datasource          IDatasource // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
 }
 
 // New New
@@ -74,6 +75,7 @@ func New(opts *Options) *LiMao {
 	l.retryQueue = NewRetryQueue(l)
 	l.apiServer = NewAPIServer(l)
 	l.monitor = NewMonitor(l)
+	l.datasource = NewDatasource(l)
 	l.lnet = limnet.New(l, limnet.WithAddr(l.opts.Addr), limnet.WithWSAddr(l.opts.WSAddr), limnet.WithUnPacket(limUnpacket))
 	l.conversationManager = NewConversationManager(l)
 	if opts.Mode == TestMode {

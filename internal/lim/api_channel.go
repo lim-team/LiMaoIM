@@ -35,6 +35,11 @@ func (ch *ChannelAPI) Route(r *lmhttp.LMHttp) {
 	r.POST("/channel/blacklist_add", ch.blacklistAdd) // 添加白明单
 	r.POST("/channel/blacklist_set", ch.blacklistSet) // 设置黑明单（覆盖原来的黑名单数据）
 	r.POST("/channel/blacklist_remove", ch.blacklistRemove)
+
+	// 白名单
+	r.POST("/channel/whitelist_add", ch.whitelistAdd)
+	r.POST("/channel/whitelist_set", ch.whitelistSet) // 设置白明单（覆盖原来的白名单数据）
+	r.POST("/channel/whitelist_remove", ch.whitelistRemove)
 }
 
 func (ch *ChannelAPI) channelCreateOrUpdate(c *lmhttp.Context) {
@@ -263,5 +268,99 @@ func (ch *ChannelAPI) blacklistRemove(c *lmhttp.Context) {
 		return
 	}
 	channelObj.RemoveDenylist(req.UIDs)
+	c.ResponseOK()
+}
+
+// --------- 白名单 -----------
+
+// 添加白名单
+func (ch *ChannelAPI) whitelistAdd(c *lmhttp.Context) {
+	var req whitelistReq
+	if err := c.BindJSON(&req); err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	err := ch.l.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("添加白名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	// 增加到缓存中
+	channelObj, err := ch.l.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.AddWAllowlist(req.UIDs)
+
+	c.ResponseOK()
+}
+func (ch *ChannelAPI) whitelistSet(c *lmhttp.Context) {
+	var req blacklistReq
+	if err := c.BindJSON(&req); err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if strings.TrimSpace(req.ChannelID) == "" {
+		c.ResponseError(errors.New("频道ID不能为空！"))
+		return
+	}
+	err := ch.l.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有白明单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有白明单失败！"))
+		return
+	}
+	if len(req.UIDs) > 0 {
+		err := ch.l.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("添加白名单失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
+	// 增加到缓存中
+	channelObj, err := ch.l.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.SetAllowlist(req.UIDs)
+
+	c.ResponseOK()
+}
+
+// 移除白名单
+func (ch *ChannelAPI) whitelistRemove(c *lmhttp.Context) {
+	var req whitelistReq
+	if err := c.BindJSON(&req); err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	err := ch.l.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("移除白名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	// 缓存中移除
+	channelObj, err := ch.l.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.RemoveAllowlist(req.UIDs)
 	c.ResponseOK()
 }

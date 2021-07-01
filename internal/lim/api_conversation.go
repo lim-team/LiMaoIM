@@ -2,7 +2,9 @@ package lim
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/lim-team/LiMaoIM/pkg/limlog"
@@ -142,7 +144,7 @@ func (s *ConversationAPI) deleteConversation(c *lmhttp.Context) {
 func (s *ConversationAPI) syncUserConversation(c *lmhttp.Context) {
 	var req struct {
 		UID         string `json:"uid"`
-		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)
+		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号
 		LastMsgSeqs string `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
 		MsgCount    int64  `json:"msg_count"`     // 每个会话消息数量
 	}
@@ -157,9 +159,44 @@ func (s *ConversationAPI) syncUserConversation(c *lmhttp.Context) {
 	}
 	conversations := s.l.conversationManager.GetConversations(req.UID, req.Version)
 
+	channelLastMsgMsgSeqMap := map[string]uint32{}
+	if req.LastMsgSeqs != "" {
+		channelMsgSeqs := strings.Split(req.LastMsgSeqs, "|")
+		for _, channelMsgSeq := range channelMsgSeqs {
+			channelAndMsgSeqs := strings.Split(channelMsgSeq, ":")
+			if len(channelAndMsgSeqs) == 3 {
+				lastMsgSeq, _ := strconv.ParseUint(channelAndMsgSeqs[2], 10, 64)
+				channelLastMsgMsgSeqMap[fmt.Sprintf("%s-%s", channelAndMsgSeqs[0], channelAndMsgSeqs[1])] = uint32(lastMsgSeq)
+			}
+		}
+	}
+
 	resps := make([]syncUserConversationResp, 0, len(conversations))
 	if len(conversations) > 0 {
 		for _, conversation := range conversations {
+			var lastMessageSeq = channelLastMsgMsgSeqMap[fmt.Sprintf("%s-%d", conversation.ChannelID, conversation.ChannelType)]
+			fakeChannelID := conversation.ChannelID
+			if conversation.ChannelType == ChannelTypePerson {
+				fakeChannelID = GetFakeChannelIDWith(req.UID, conversation.ChannelID)
+			}
+
+			var messageResps []*MessageResp
+			if req.MsgCount > 0 {
+				recentMessages, err := s.l.store.GetMessages(fakeChannelID, conversation.ChannelType, lastMessageSeq, uint64(req.MsgCount))
+				if err != nil {
+					s.Error("查询最近消息失败！", zap.Error(err))
+					c.ResponseError(err)
+					return
+				}
+				messageResps = make([]*MessageResp, 0, len(recentMessages))
+				if len(recentMessages) > 0 {
+					for _, recentMessage := range recentMessages {
+						messageResp := &MessageResp{}
+						messageResp.from(recentMessage)
+						messageResps = append(messageResps, messageResp)
+					}
+				}
+			}
 			syncUserConversationR := syncUserConversationResp{
 				ChannelID:       conversation.ChannelID,
 				ChannelType:     conversation.ChannelType,
@@ -168,6 +205,7 @@ func (s *ConversationAPI) syncUserConversation(c *lmhttp.Context) {
 				LastMsgSeq:      conversation.LastMsgSeq,
 				LastClientMsgNo: conversation.LastClientMsgNo,
 				Version:         conversation.Version,
+				Recents:         messageResps,
 			}
 			resps = append(resps, syncUserConversationR)
 		}

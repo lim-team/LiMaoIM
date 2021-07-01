@@ -1,6 +1,8 @@
 package lim
 
 import (
+	"fmt"
+
 	"github.com/lim-team/LiMaoIM/internal/db"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 )
@@ -25,10 +27,16 @@ type Storage interface {
 	GetDenylist(channelID string, channelType uint8) ([]string, error)
 	RemoveDenylist(channelID string, channelType uint8, uids []string) error
 	RemoveAllDenylist(channelID string, channelType uint8) error
+	// ---------- allowlist ----------
+	GetAllowlist(channelID string, channelType uint8) ([]string, error)
+	AddAllowlist(channelID string, channelType uint8, uids []string) error
+	RemoveAllowlist(channelID string, channelType uint8, uids []string) error
+	RemoveAllAllowlist(channelID string, channelType uint8) error
 	// ---------- message ----------
 	GetNextMessageSeq(channelID string, channelType uint8) (uint32, error)
 	AppendMessage(m *db.Message) (n int, err error)
 	GetMessages(channelID string, channelType uint8, offset uint32, limit uint64) ([]*db.Message, error)
+	GetMessagesWithOptions(channelID string, channelType uint8, offset uint32, limit uint64, reverse bool, endMessageSeq uint32) ([]*db.Message, error)
 	GetMessage(channelID string, channelType uint8, messageSeq uint32) (*db.Message, error)
 	AppendMessageOfUser(uid string, m *db.Message) (int, error)
 	AppendMessageOfNotifyQueue(m *db.Message) error
@@ -73,6 +81,8 @@ func (d *DefaultStorage) GetChannel(channelID string, channelType uint8) (*Chann
 		return nil, err
 	}
 	channelInfo := &ChannelInfo{}
+	channelInfo.ChannelID = channelID
+	channelInfo.ChannelType = channelType
 	channelInfo.from(channelMap)
 	return channelInfo, nil
 }
@@ -147,6 +157,44 @@ func (d *DefaultStorage) GetMessages(channelID string, channelType uint8, offset
 	return d.db.GetMessages(channelID, channelType, offset, limit)
 }
 
+// GetMessagesWithOptions GetMessagesWithOptions
+func (d *DefaultStorage) GetMessagesWithOptions(channelID string, channelType uint8, offset uint32, limit uint64, reverse bool, endMessageSeq uint32) ([]*db.Message, error) {
+	if reverse {
+		offsetSeq := int64(offset) - int64(limit) - 1
+		if offsetSeq < 0 {
+			offsetSeq = 0
+		}
+		messages, err := d.db.GetMessages(channelID, channelType, uint32(offsetSeq), limit)
+		if err != nil {
+			return nil, err
+		}
+		newMessages := make([]*db.Message, 0, len(messages))
+		if len(messages) > 0 {
+			for _, message := range messages {
+				if message.MessageSeq < offset {
+					newMessages = append(newMessages, message)
+				}
+			}
+		}
+		return newMessages, nil
+	} else {
+		messages, err := d.db.GetMessages(channelID, channelType, offset+1, limit)
+		if err != nil {
+			return nil, err
+		}
+		if endMessageSeq == 0 {
+			return messages, nil
+		}
+		newMessages := make([]*db.Message, 0, len(messages))
+		for _, message := range messages {
+			if message.MessageSeq < endMessageSeq {
+				newMessages = append(newMessages, message)
+			}
+		}
+		return newMessages, nil
+	}
+}
+
 // GetMessage GetMessage
 func (d *DefaultStorage) GetMessage(channelID string, channelType uint8, messageSeq uint32) (*db.Message, error) {
 	return d.db.GetMessage(channelID, channelType, messageSeq)
@@ -154,7 +202,7 @@ func (d *DefaultStorage) GetMessage(channelID string, channelType uint8, message
 
 // AddOrUpdateConversations AddOrUpdateConversations
 func (d *DefaultStorage) AddOrUpdateConversations(uid string, conversations []*db.Conversation) error {
-
+	fmt.Println("AddOrUpdateConversations---->", uid, conversations)
 	return d.db.AddOrUpdateConversations(uid, conversations)
 }
 
@@ -180,10 +228,31 @@ func (d *DefaultStorage) GetDenylist(channelID string, channelType uint8) ([]str
 
 // RemoveDenylist RemoveDenylist
 func (d *DefaultStorage) RemoveDenylist(channelID string, channelType uint8, uids []string) error {
-	return d.RemoveDenylist(channelID, channelType, uids)
+	return d.db.RemoveDenylist(channelID, channelType, uids)
 }
 
 // RemoveAllDenylist RemoveAllDenylist
 func (d *DefaultStorage) RemoveAllDenylist(channelID string, channelType uint8) error {
-	return d.RemoveAllDenylist(channelID, channelType)
+	return d.db.RemoveAllDenylist(channelID, channelType)
+}
+
+// GetAllowlist 获取白名单
+func (d *DefaultStorage) GetAllowlist(channelID string, channelType uint8) ([]string, error) {
+	return d.db.GetAllowlist(channelID, channelType)
+}
+
+// AddAllowlist 添加白名单
+func (d *DefaultStorage) AddAllowlist(channelID string, channelType uint8, uids []string) error {
+
+	return d.db.AddAllowlist(channelID, channelType, uids)
+}
+
+// RemoveAllowlist 移除白名单
+func (d *DefaultStorage) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
+	return d.db.RemoveAllowlist(channelID, channelType, uids)
+}
+
+// RemoveAllAllowlist 移除指定频道的所有白名单
+func (d *DefaultStorage) RemoveAllAllowlist(channelID string, channelType uint8) error {
+	return d.RemoveAllAllowlist(channelID, channelType)
 }

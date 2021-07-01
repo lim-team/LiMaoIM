@@ -16,6 +16,9 @@ import (
 )
 
 var (
+	// ErrorNotData ErrorNotData
+	ErrorNotData = errors.New("no data")
+
 	// MagicNumber MagicNumber
 	MagicNumber = [2]byte{0x15, 0x16} // lm
 	// EndMagicNumber EndMagicNumber
@@ -325,6 +328,9 @@ func (s *Segment) ReadLogs(offset int64, limit uint64, callback func(data []byte
 	} else {
 		startPosition, _, err = s.readTargetPosition(offsetPosition.Position, offset)
 		if err != nil {
+			if errors.Is(err, ErrorNotData) {
+				return nil
+			}
 			return err
 		}
 	}
@@ -376,7 +382,7 @@ func (s *Segment) ReadAt(offset int64, log ILog) error {
 
 func (s *Segment) readTargetPosition(startPosition int64, targetOffset int64) (int64, int64, error) {
 	if startPosition >= s.position {
-		return 0, 0, errors.New(fmt.Sprintf("Position is out of bounds[%d]", startPosition))
+		return 0, 0, ErrorNotData
 	}
 	resultOffset, dataLen, err := s.readAtPosition(startPosition)
 	if err != nil {

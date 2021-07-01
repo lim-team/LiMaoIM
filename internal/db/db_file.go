@@ -182,7 +182,7 @@ func (f *FileDB) getList(slotNum uint, key string) ([]string, error) {
 
 	var values []string
 	err := f.db.View(func(t *bolt.Tx) error {
-		bucket, err := f.getSlotBucketWithKey(key, t)
+		bucket, err := f.getSlotBucket(slotNum, t)
 		if err != nil {
 			return err
 		}

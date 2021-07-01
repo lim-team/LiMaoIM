@@ -264,7 +264,7 @@ func (s *PacketHandler) handleSendPacketWithFrom(fromUID string, fromDeviceFlag 
 		MessageID:   recvPacket.MessageID,
 		MessageSeq:  recvPacket.MessageSeq,
 		ClientMsgNo: recvPacket.ClientMsgNo,
-		Timestamp:   recvPacket.Timestamp,
+		Timestamp:   int32(time.Now().Unix()),
 		FromUID:     recvPacket.FromUID,
 		ChannelID:   fakeChannelID,
 		ChannelType: recvPacket.ChannelType,
