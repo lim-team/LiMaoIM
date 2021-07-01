@@ -5,7 +5,7 @@
 <img align="left" width="160" src="./docs/logo.png">
 <ul>
 <li><strong>QQ群</strong>: <a href="#">496193831</a></li>
-<li><strong>官网</strong>: http://limao.io</li>
+<li><strong>官网</strong>: http://wwww.limao.io</li>
 <li><strong>源码</strong>: https://github.com/lim-team/LiMaoIM</li>
 <li><strong>通讯协议</strong>: <a href="./docs/protocol.md">LiMaoIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
