@@ -2,7 +2,7 @@
 
 本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务
 <p align="center">
-<img align="left" width="130" src="./docs/logo.png">
+<img align="left" width="160" src="./docs/logo.png">
 <ul>
 <li><strong>QQ群</strong>:496193831</li>
 <li><strong>官网</strong>: http://limao.io</li>
