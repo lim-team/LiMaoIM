@@ -38,7 +38,7 @@
 
 [获取limaoim执行文件](./INSTALL.md)
 
-#### 运行服务端
+#### 运行服务端 （注意：Window上没测试过，建议在Mac或Linux上运行）
 
 ```
 $ ./limaoim  (或者 ./limaoim -c configs/config.toml)
