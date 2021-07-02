@@ -1,4 +1,4 @@
-FROM golang:1.13 as build
+FROM golang:1.16 as build
 
 ENV GOPROXY https://goproxy.io
 ENV GO111MODULE on

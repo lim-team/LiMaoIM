@@ -2,13 +2,11 @@ package lim
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jinzhu/configor"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
-	"go.etcd.io/etcd/server/v3/datadir"
 )
 
 const (
@@ -109,18 +107,6 @@ func (o *Options) Load(path ...string) {
 // WebhookOn WebhookOn
 func (o *Options) WebhookOn() bool {
 	return strings.TrimSpace(o.Webhook) != ""
-}
-
-// SnapDir SnapDir
-func (o *Options) SnapDir() string { return filepath.Join(o.MemberDir(), "snap") }
-
-// MemberDir MemberDir
-func (o *Options) MemberDir() string { return datadir.ToMemberDir(o.DataDir) }
-
-// WALDir WALDir
-func (o *Options) WALDir() string {
-
-	return datadir.ToWalDir(o.DataDir)
 }
 
 // HasDatasource 是否有配置数据源

@@ -1,6 +1,6 @@
 module github.com/lim-team/LiMaoIM
 
-go 1.15
+go 1.16
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20201029015908-64de9d088c74
@@ -22,8 +22,8 @@ require (
 	github.com/sendgrid/rest v2.6.4+incompatible
 	github.com/stretchr/testify v1.7.0
 	github.com/tangtaoit/go-metrics v1.0.1
+	github.com/tangtaoit/limnet v0.0.0-20210625051710-6c01e4218909
 	go.etcd.io/bbolt v1.3.6
-	go.etcd.io/etcd/server/v3 v3.5.0-rc.1
 	go.uber.org/atomic v1.8.0
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.17.0
