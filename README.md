@@ -153,23 +153,23 @@ $ docker-compose up
 ***用此通讯端做的自研的IM产品案例截图***
 
 <p align="left">
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE6ddf956e3a9f5a566001424e8e216399/9011" width="350" height="350" alt="收发消息演示"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receive_and_send.gif" width="350" height="350" alt="收发消息演示"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCEec69f6388d0d8a90e3eebbb5abd27798/9005" width="350" height="350" alt="正在输入"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/typing.gif" width="350" height="350" alt="正在输入"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCEf321379d2bca5a7f6534261133cf3f95/9012" width="350" height="350" alt="消息回执"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receipt.gif" width="350" height="350" alt="消息回执"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE48b722dcc9536f485aab9b53a8d644e6/9017" width="350" height="350" alt="消息回应"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/msg_reaction.gif" width="350" height="350" alt="消息回应"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE8091338f25c4a8acdf790a05e20866cb/9009" width="350" height="350" alt="红包消息"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/redpacket.gif" width="350" height="350" alt="红包消息"/>
 
-<img   src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE103c38b69354c0fff7f2efd0b0899bae/9007" width="350" height="350" alt="转账消息"/>
+<img   src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/transfer.gif" width="350" height="350" alt="转账消息"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE15e2c5b6878ad29ca0670c2763740a4b/9019" width="350" height="350" alt="群管理"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/group_manager.gif" width="350" height="350" alt="群管理"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE96b55d94ee1dde446c81c1ea66444873/9020" width="350" height="350" alt="朋友圈"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/dynamic.gif" width="350" height="350" alt="朋友圈"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE5ba6131b0372af668ca9cf0bf941ef52/9014" width="350" height="350" alt="单人音视频"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/p2pcall.gif" width="350" height="350" alt="单人音视频"/>
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE24672ec95ddeb0a208afcdefbdd9ec27/9016" width="350" height="350" alt="多人音视频"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/multiplecall.gif" width="350" height="350" alt="多人音视频"/>
 </p>
