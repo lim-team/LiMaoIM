@@ -33,7 +33,7 @@
 
 ## 快速入门
 
-<img  src="https://note.youdao.com/yws/public/resource/3bcde1e953dd68f83a91f1cff4924795/xmlnote/WEBRESOURCE329f3f2aaf2a465ef0e8558c3481cc4b/8989"  alt="收发消息演示"/>
+<img  src="https://raw.githubusercontent.com/lim-team/screenshot/main/quick.gif"  alt="快速入门"/>
 
 
 [获取limaoim执行文件](./INSTALL.md)
