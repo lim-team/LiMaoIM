@@ -33,7 +33,7 @@
 
 ## 快速入门
 
-<img  src="https://raw.githubusercontent.com/lim-team/screenshot/main/quick.gif"  alt="快速入门"/>
+<img  src="./docs/quick.gif"  alt="快速入门"/>
 
 
 [获取limaoim执行文件](./INSTALL.md)
@@ -43,6 +43,8 @@
 ```
 $ ./limaoim  (或者 ./limaoim -c configs/config.toml)
 ```
+
+服务器运行后，访问 http://127.0.0.1:1516/api 查看api文档
 
 #### 客户端SDK
 
