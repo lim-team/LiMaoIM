@@ -48,7 +48,7 @@ $ ./limaoim  (或者 ./limaoim -c configs/config.toml)
 
 #### 客户端SDK
 
-Android SDK: [Android SDK](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
+Android SDK: [Android SDK(内置简单demo)](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
 
 iOS SDK: Star到500开源 (请帮我们点点Star，感谢 😄)
 
