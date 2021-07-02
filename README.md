@@ -48,7 +48,7 @@ iOS SDK: Star到500开源 (请帮我们点点Star，感谢 😄)
 
 JS SDK: Star到1000开源 (请帮我们点点Star，感谢😄)
 
-注意： SDK的使用请查看[文档](http://limao.io/docs)
+注意： SDK的使用请查看[文档](http://www.limao.io/docs)
 <!-- 
 ## 快速试玩
 
