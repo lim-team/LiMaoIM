@@ -22,7 +22,6 @@ require (
 	github.com/sendgrid/rest v2.6.4+incompatible
 	github.com/stretchr/testify v1.7.0
 	github.com/tangtaoit/go-metrics v1.0.1
-	github.com/tangtaoit/limnet v0.0.0-20210420102023-06d3eb19a0cd
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/server/v3 v3.5.0-rc.1
 	go.uber.org/atomic v1.8.0
@@ -36,4 +35,4 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
 
-replace github.com/tangtaoit/limnet => /Users/tt/work/projects/limao/go/limnet
+// replace github.com/tangtaoit/limnet => /Users/tt/work/projects/limao/go/limnet
