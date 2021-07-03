@@ -121,6 +121,29 @@ func (s *PacketHandler) handleConnect(c limnet.Conn, connectPacket *lmproto.Conn
 	s.l.onlineStatusWebhook.Online(connectPacket.UID, connectPacket.DeviceFlag)
 }
 
+func (s *PacketHandler) handlePing(c *Client) {
+	s.Debug("收到Ping", zap.Int64("id", c.GetID()))
+	c.WritePacket(&lmproto.PongPacket{})
+}
+
+// 处理收到消息ack
+func (s *PacketHandler) handleRecvack(c *Client, recvackPacket *lmproto.RecvackPacket) {
+	c.Debug("收到回复包。", zap.String("packet", recvackPacket.String()))
+	// 完成消息（移除重试队列里的消息）
+	err := s.l.retryQueue.finishMessage(c.GetID(), recvackPacket.MessageID)
+	if err != nil {
+		c.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Int64("clientID", c.GetID()), zap.Uint8("deviceFlag", c.deviceFlag.ToUint8()), zap.Int64("messageID", recvackPacket.MessageID))
+	}
+
+	// if recvackPacket.SyncOnce && !recvackPacket.NoPersist {
+	// 	err = s.l.store.DeleteMessageOfUserWithMessageID(c.uid, recvackPacket.MessageID)
+	// 	if err != nil {
+	// 		c.Warn("删除消息失败！", zap.Error(err), zap.String("uid", c.uid), zap.Int64("messageID", recvackPacket.MessageID))
+	// 	}
+	// }
+
+}
+
 // Handling client disconnects
 func (s *PacketHandler) handleDisconnect(c limnet.Conn) {
 

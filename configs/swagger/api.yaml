@@ -208,10 +208,7 @@ paths:
               reverse:
                 type: "integer"
                 format: "int"
-                description: "
-                是否反转查询 0.否 1.是   
-                如果为0 查询大于offset_message_seq的消息，
-                如果为1 查询小于offset_message_seq的消息"
+                description: "是否反转查询 0.否 1.是   如果为0 查询大于offset_message_seq的消息，如果为1 查询小于offset_message_seq的消息"
               offset_message_seq:  
                  type: "integer"
                  format: "uint32"

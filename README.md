@@ -55,31 +55,26 @@ iOS SDK: Star到500开源 (请帮我们点点Star，感谢 😄)
 JS SDK: Star到1000开源 (请帮我们点点Star，感谢😄)
 
 注意： SDK的使用请查看[文档](http://www.limao.io/docs)
-<!-- 
+
 ## 快速试玩
 
-***登录test1,test2 test2向test1发送一条消息“this is test”***
+***登录test1,test2 test2向test1发送一条消息“hello”***
 
 ```
 // 登录test1
-$ go run cmd/test/main.go login 127.0.0.1 -user=test1 -token=xxxx
+$ go run cmd/play/main.go -user=test1 
 ```
 
 ```
 // 登录test2
-$ go run cmd/test/main.go login 127.0.0.1 -user=test2 -token=xxxx
+$ go run cmd/play/main.go -user=test2 
 ```
 
-test1监听消息
-```
-$ >watch
-```
-
-test2发送消息给test1
+test2发送消息hello给test1
 
 ```
-$ >send "this is test" -to test1
-``` -->
+$ >send hello to test1
+```
 
 
 ### 性能测试

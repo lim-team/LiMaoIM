@@ -208,6 +208,15 @@ func (l *LiMao) handlePacket(c limnet.Conn, packet lmproto.Frame) {
 	switch packet.GetPacketType() {
 	case lmproto.CONNECT: // connect
 		l.packetHandler.handleConnect(c, packet.(*lmproto.ConnectPacket))
+		break
+	case lmproto.PING: // ping
+		client := l.clientManager.Get(c.GetID())
+		if client == nil {
+			l.Warn("发送消息的客户端没有找到，不处理此条消息！", zap.Any("pingPacket", packet))
+			return
+		}
+		l.packetHandler.handlePing(client)
+		break
 	case lmproto.SEND: //  send
 		client := l.clientManager.Get(c.GetID())
 		if client == nil {
@@ -220,6 +229,15 @@ func (l *LiMao) handlePacket(c limnet.Conn, packet lmproto.Frame) {
 		}
 		client.clientSendPacketInc() // 客户端发送包统计
 		l.packetHandler.HandleSend(client, packet.(*lmproto.SendPacket))
+		break
+	case lmproto.RECVACK:
+		client := l.clientManager.Get(c.GetID())
+		if client == nil {
+			l.Warn("发送消息的客户端没有找到，不处理此条消息！", zap.Any("sendPacket", packet))
+			return
+		}
+		l.packetHandler.handleRecvack(client, packet.(*lmproto.RecvackPacket))
+		break
 	}
 }
 
