@@ -57,7 +57,7 @@ iOS SDK: Open source from Star to 500 (please help us some Star, thanks 😄)
 
 JS SDK: Star to 1000 open source (please help us some Star, thanks 😄)
 
-注意： Please check [document](http://www.limao.io/docs) for the use of SDK
+note： Please check [document](http://www.limao.io/docs) for the use of SDK
 
 ## Quick play
 
