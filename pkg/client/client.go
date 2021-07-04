@@ -163,12 +163,13 @@ func (c *Client) handleClose() {
 }
 
 // SendMessage 发送消息
-func (c *Client) SendMessage(channel *Channel, payload []byte) error {
-	return c.SendMessageWithFlush(channel, payload, true)
-}
-
-// SendMessageWithFlush 发送消息
-func (c *Client) SendMessageWithFlush(channel *Channel, payload []byte, flush bool) error {
+func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption) error {
+	opts := NewSendOptions()
+	if len(opt) > 0 {
+		for _, op := range opt {
+			op(opts)
+		}
+	}
 	// 加密消息内容
 	encPayload, err := util.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 	if err != nil {
@@ -177,6 +178,11 @@ func (c *Client) SendMessageWithFlush(channel *Channel, payload []byte, flush bo
 	}
 
 	packet := &lmproto.SendPacket{
+		Framer: lmproto.Framer{
+			NoPersist: opts.NoPersist,
+			SyncOnce:  opts.SyncOnce,
+			RedDot:    opts.RedDot,
+		},
 		ClientSeq:   c.clientIDGen.Add(1),
 		ClientMsgNo: util.GenerUUID(),
 		ChannelID:   channel.ChannelID,
@@ -201,7 +207,7 @@ func (c *Client) SendMessageWithFlush(channel *Channel, payload []byte, flush bo
 	if err != nil {
 		return err
 	}
-	if flush {
+	if opts.Flush {
 		return c.rw.Flush()
 	}
 	return nil

@@ -121,12 +121,13 @@ func (cm *ConversationManager) PushMessage(message *Message, subscribers []strin
 	if len(subscribers) == 0 || message == nil {
 		return
 	}
-	if !message.SyncOnce && !message.NoPersist {
-		cm.queue.Push(map[string]interface{}{
-			"message":     message,
-			"subscribers": subscribers,
-		})
+	if message.SyncOnce || message.NoPersist {
+		return
 	}
+	cm.queue.Push(map[string]interface{}{
+		"message":     message,
+		"subscribers": subscribers,
+	})
 }
 
 // SetConversationUnread set unread data from conversation

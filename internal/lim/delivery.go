@@ -1,10 +1,48 @@
 package lim
 
 import (
+	"github.com/lim-team/LiMaoIM/internal/db"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 	"github.com/lim-team/LiMaoIM/pkg/util"
 	"go.uber.org/zap"
 )
+
+// 存储在消息队列内 如果需要
+func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) error {
+	for _, subscriber := range subscribers {
+		if m.SyncOnce && !m.NoPersist {
+			seq, err := l.store.GetUserNextMessageSeq(subscriber)
+			if err != nil {
+				return err
+			}
+
+			newFramer := m.Framer
+			if subscriber == m.FromUID { // 如果是自己则不显示红点
+				newFramer.RedDot = false
+			}
+			messageD := &db.Message{
+				Header:      lmproto.ToFixHeaderUint8(newFramer),
+				Setting:     m.Setting.ToUint8(),
+				MessageID:   m.MessageID,
+				MessageSeq:  seq,
+				ClientMsgNo: m.ClientMsgNo,
+				Timestamp:   m.Timestamp,
+				FromUID:     m.FromUID,
+				ChannelID:   m.ChannelID,
+				ChannelType: m.ChannelType,
+				Payload:     m.Payload,
+			}
+			if m.ChannelType == ChannelTypePerson && m.ChannelID == m.ToUID {
+				messageD.ChannelID = m.FromUID
+			}
+			_, err = l.store.AppendMessageOfUser(subscriber, messageD)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 // ==================== 消息投递 ====================
 func (l *LiMao) startDeliveryMsg(m *Message, subscribers ...string) {

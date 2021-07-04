@@ -52,3 +52,56 @@ func WithAutoReconn(autoReconn bool) Option {
 		return nil
 	}
 }
+
+// SendOptions SendOptions
+type SendOptions struct {
+	NoPersist bool // 是否不存储 默认 false
+	SyncOnce  bool // 是否同步一次（写模式） 默认 false
+	Flush     bool // 是否io flush 默认true
+	RedDot    bool // 是否显示红点 默认true
+}
+
+// NewSendOptions NewSendOptions
+func NewSendOptions() *SendOptions {
+	return &SendOptions{
+		NoPersist: false,
+		SyncOnce:  false,
+		Flush:     true,
+		RedDot:    true,
+	}
+}
+
+// SendOption 参数项
+type SendOption func(*SendOptions) error
+
+// SendOptionWithNoPersist 是否不存储
+func SendOptionWithNoPersist(noPersist bool) SendOption {
+	return func(opts *SendOptions) error {
+		opts.NoPersist = noPersist
+		return nil
+	}
+}
+
+// SendOptionWithSyncOnce 是否只同步一次（写模式）
+func SendOptionWithSyncOnce(syncOnce bool) SendOption {
+	return func(opts *SendOptions) error {
+		opts.SyncOnce = syncOnce
+		return nil
+	}
+}
+
+// SendOptionWithFlush 是否 io flush
+func SendOptionWithFlush(flush bool) SendOption {
+	return func(opts *SendOptions) error {
+		opts.Flush = flush
+		return nil
+	}
+}
+
+// SendOptionWithRedDot 是否显示红点
+func SendOptionWithRedDot(redDot bool) SendOption {
+	return func(opts *SendOptions) error {
+		opts.RedDot = redDot
+		return nil
+	}
+}

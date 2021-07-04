@@ -73,7 +73,7 @@ func sendWorker(uid string, td time.Duration, tcpAddr string, batch [][]byte, re
 	for {
 		for _, b := range batch {
 			wg.Add(1)
-			err := c.SendMessageWithFlush(client.NewChannel("toTest2", 1), b, false)
+			err := c.SendMessage(client.NewChannel("toTest2", 1), b, client.SendOptionWithFlush(false))
 			if err != nil {
 				fmt.Println("send message fail", zap.Error(err))
 			}

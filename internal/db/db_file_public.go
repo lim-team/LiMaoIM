@@ -213,6 +213,12 @@ func (f *FileDB) GetNextMessageSeq(channelID string, channelType uint8) (uint32,
 	return f.topic(channelID, channelType).NextOffset()
 }
 
+// GetUserNextMessageSeq GetUserNextMessageSeq
+func (f *FileDB) GetUserNextMessageSeq(uid string) (uint32, error) {
+	slot := f.slotNum(uid)
+	return f.getOrNewSlot(slot).GetTopic(uid).NextOffset()
+}
+
 // AppendMessage AppendMessage
 func (f *FileDB) AppendMessage(m *Message) (int, error) {
 	return f.topic(m.ChannelID, m.ChannelType).AppendLog(m)

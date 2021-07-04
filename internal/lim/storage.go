@@ -1,8 +1,6 @@
 package lim
 
 import (
-	"fmt"
-
 	"github.com/lim-team/LiMaoIM/internal/db"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 )
@@ -34,6 +32,7 @@ type Storage interface {
 	RemoveAllAllowlist(channelID string, channelType uint8) error
 	// ---------- message ----------
 	GetNextMessageSeq(channelID string, channelType uint8) (uint32, error)
+	GetUserNextMessageSeq(uid string) (uint32, error)
 	AppendMessage(m *db.Message) (n int, err error)
 	GetMessages(channelID string, channelType uint8, offset uint32, limit uint64) ([]*db.Message, error)
 	GetMessagesWithOptions(channelID string, channelType uint8, offset uint32, limit uint64, reverse bool, endMessageSeq uint32) ([]*db.Message, error)
@@ -127,6 +126,11 @@ func (d *DefaultStorage) GetNextMessageSeq(channelID string, channelType uint8) 
 	return d.db.GetNextMessageSeq(channelID, channelType)
 }
 
+// GetUserNextMessageSeq GetUserNextMessageSeq
+func (d *DefaultStorage) GetUserNextMessageSeq(uid string) (uint32, error) {
+	return d.db.GetUserNextMessageSeq(uid)
+}
+
 // AppendMessage AppendMessage
 func (d *DefaultStorage) AppendMessage(m *db.Message) (n int, err error) {
 	return d.db.AppendMessage(m)
@@ -202,7 +206,6 @@ func (d *DefaultStorage) GetMessage(channelID string, channelType uint8, message
 
 // AddOrUpdateConversations AddOrUpdateConversations
 func (d *DefaultStorage) AddOrUpdateConversations(uid string, conversations []*db.Conversation) error {
-	fmt.Println("AddOrUpdateConversations---->", uid, conversations)
 	return d.db.AddOrUpdateConversations(uid, conversations)
 }
 

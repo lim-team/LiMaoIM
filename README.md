@@ -1,93 +1,96 @@
-## 狸猫IM（LiMaoIM） 一切很简单
+## LiMaoIM (Everything so easy)
 
-本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务，完全自定义协议的聊天(Chat)系统
+This project is a simple and easy to use, powerful performance, simple design concept instant messaging service, fully custom protocol chat (Chat) system
+
+[中文文档](./README_CN.md)
+
 <p align="center">
 <img align="left" width="160" src="./docs/logo.png">
 <ul>
-<li><strong>QQ群</strong>: <a href="#">496193831</a></li>
-<li><strong>官网</strong>: http://www.limao.io</li>
-<li><strong>源码</strong>: https://github.com/lim-team/LiMaoIM</li>
-<li><strong>通讯协议</strong>: <a href="./docs/protocol.md">LiMaoIM协议</a></li>
-<li><strong>提问</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
-<li><strong>文档</strong>: http://www.limao.io/docs</li>
+<li><strong>QQ group</strong>: <a href="#">496193831</a></li>
+<li><strong>Website</strong>: http://www.limao.io</li>
+<li><strong>Source</strong>: https://github.com/lim-team/LiMaoIM</li>
+<li><strong>Protocol</strong>: <a href="./docs/protocol.md">LiMaoIM Protocol</a></li>
+<li><strong>Issues</strong>: https://github.com/lim-team/LiMaoIM/issues</li>
+<li><strong>Docs</strong>: http://www.limao.io/docs</li>
 </ul>
 </p>
 
 [![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://limao.io/docs)
 [![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
-## 特点
+## Feature
 
-* go语言开发，高性能与易维护兼得。
-* 底层100%开源。
-* 二进制协议(支持自定义)，包大小极小，最小心跳包只有1byte，耗电小，流量小，传输速度快。
-* 消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
-* 简单易用，性能强劲，MAC笔记本单机测试6w多/秒的消息吞吐量，为了达到这性能和简单易用，完全自主实现消息存储，无如何第三方组件依赖，一条命令即可启动服务
-* 采用tcp协议+ack机制保证消息稳定可靠不丢。
-* 扩展性强 采用频道设计理念，目前支持群组频道，点对点频道，后续可以根据自己业务自定义频道可实现机器人频道，客服频道等等功能。
-* 多端同步，web，pc，app消息实时同步。
-* 同时无差别支持tcp，websocket。
-* 万人群支持。
-* 消息分区永久存储，卸载设备消息不丢。
-* 支持读模式的离线拉取
+* Go language development, high performance and easy maintenance have both
+* The bottom layer is 100% open source
+* Binary protocol (supports customization), the packet size is extremely small, the minimum heartbeat packet is only 1 byte, the power consumption is small, the flow is small, and the transmission speed is fast
+* The message channel and message content are fully encrypted to prevent man-in-the-middle attacks and modify of message content.
+* Simple and easy to use, strong performance, MAC notebook stand-alone test more than 6w/sec message throughput, in order to achieve this performance and easy to use, completely independent message storage, no need to rely on third-party components, a single command can start the service
+* The tcp  + ack mechanism is used to ensure that the message is stable and reliable without loss
+* Strong scalability Adopting the channel design concept, currently supports group channels, point-to-point channels, and you can customize channels according to your own business in the future. It can realize functions such as robot channels, customer service channels, etc
+* Multi-terminal synchronization, real-time synchronization of web, pc, app messages
+* TCP and Websocket are supported indiscriminately
+* Ten thousand people support
+* The message partition is permanently stored, and the message will not be lost when the device is uninstalled
+* Support offline pull in read mode
 
-## 快速入门
+## Quick start
 
-<img  src="./docs/quick.gif"  alt="快速入门"/>
+<img  src="./docs/quick.gif"  alt="Quick start"/>
 
 
-[获取limaoim执行文件](./INSTALL.md)
+[Get limaoim executable file](./INSTALL.md)
 
-#### 运行服务端 （注意：因为重写了Go的网络库，此库Windows暂时不支持，Windows建议使用Docker运行。）
-
-```
-$ ./limaoim  (或者 ./limaoim -c configs/config.toml)
-```
-
-服务器运行后，访问 http://127.0.0.1:1516/api 查看api文档
-
-#### 客户端SDK
-
-Android SDK: [Android SDK(内置简单demo)](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
-
-iOS SDK: Star到500开源 (请帮我们点点Star，感谢 😄)
-
-JS SDK: Star到1000开源 (请帮我们点点Star，感谢😄)
-
-注意： SDK的使用请查看[文档](http://www.limao.io/docs)
-
-## 快速试玩
-
-***登录test1,test2 test2向test1发送一条消息“hello”***
+#### Run the server (Note: Because it rewrites the Go network library, this library is temporarily not supported by Windows. Windows recommends using Docker to run.)
 
 ```
-// 登录test1
+$ ./limaoim  (or ./limaoim -c configs/config.toml)
+```
+
+After the server is running, visit http://127.0.0.1:1516/api to view the api document
+
+#### Client SDK
+
+Android SDK: [Android SDK (built-in simple demo)](https://github.com/lim-team/LiMaoIMAndroidSDK.git)
+
+iOS SDK: Open source from Star to 500 (please help us some Star, thanks 😄)
+
+JS SDK: Star to 1000 open source (please help us some Star, thanks 😄)
+
+注意： Please check [document](http://www.limao.io/docs) for the use of SDK
+
+## Quick play
+
+***Log in to test1, test2 and test2 to send a message "hello" to test1***
+
+```
+// Log in to test1
 $ go run cmd/play/main.go -user=test1 
 ```
 
 ```
-// 登录test2
+// Log in to test2
 $ go run cmd/play/main.go -user=test2 
 ```
 
-test2发送消息hello给test1
+test2 sends the message hello to test1
 
 ```
 $ >send hello to test1
 ```
 
 
-### 性能测试
+### Performance Testing
 
-一键压测
+One-click pressure test
 
 ```
 ./bench.sh
 ```
 
-本人测试结果如下：
+My test results are as follows:
 
-达到每秒63420条消息的吞吐量，接近redis的压测数据！
+Achieve a throughput of 63420 messages per second, which is close to the pressure test data of redis!
 
 ```
 goos: darwin
@@ -134,20 +137,20 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 
 
 
-#### 通过Docker Compose运行
+#### Run via Docker Compose
 
 ```
 $ docker-compose up 
 ```
 
 
-### 案例 (注意：案例不开源)
+### Case (Note: The case is not open source)
 
-***案例体验***
+***Case experience***
 
 <img  src="./docs/demo_qrcode.png" width="250" />
 
-***用此通讯端做的自研的IM产品案例截图***
+***Screenshot of self-developed IM product case using this communication terminal***
 
 <p align="left">
 <img  src="https://raw.githubusercontent.com/lim-team/screenshot/master/android/receive_and_send.gif" width="350" height="350" alt="收发消息演示"/>

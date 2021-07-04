@@ -47,6 +47,7 @@ type DB interface {
 
 // IMessageDB IMessageDB
 type IMessageDB interface {
+	GetUserNextMessageSeq(uid string) (uint32, error)
 	// AppendMessage 追加消息到频道队列  n 为追加的实际字节数
 	AppendMessage(m *Message) (n int, err error)
 	// AppendMessageOfUser 追加消息到用户队列

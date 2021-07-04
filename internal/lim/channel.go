@@ -218,6 +218,7 @@ func (c *Channel) PutMessage(m *Message) error {
 		subscribers = append(subscribers, c.GetAllSubscribers()...)
 	}
 	c.Debug("subscribers", zap.Any("subscribers", subscribers))
+	c.l.storeMessageToUserQueueIfNeed(m, subscribers)
 	c.l.conversationManager.PushMessage(m, subscribers)
 	c.l.startDeliveryMsg(m, subscribers...)
 	return nil
