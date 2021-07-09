@@ -216,7 +216,23 @@ func (f *FileDB) GetNextMessageSeq(channelID string, channelType uint8) (uint32,
 // GetUserNextMessageSeq GetUserNextMessageSeq
 func (f *FileDB) GetUserNextMessageSeq(uid string) (uint32, error) {
 	slot := f.slotNum(uid)
-	return f.getOrNewSlot(slot).GetTopic(uid).NextOffset()
+	var seq uint64
+	err := f.db.Update(func(t *bolt.Tx) error {
+		b, err := f.getSlotBucket(slot, t)
+		if err != nil {
+			return err
+		}
+		userBucket, err := b.CreateBucketIfNotExists([]byte(fmt.Sprintf("%s%s", f.userSeqPrefix, uid)))
+		if err != nil {
+			return err
+		}
+		seq, err = userBucket.NextSequence()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return uint32(seq), err
 }
 
 // AppendMessage AppendMessage

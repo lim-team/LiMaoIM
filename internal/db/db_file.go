@@ -26,6 +26,7 @@ type FileDB struct {
 	denylistPrefix    string
 	allowlistPrefix   string
 	notifyQueuePrefix string
+	userSeqPrefix     string
 	scanner           *Scanner
 }
 
@@ -44,6 +45,7 @@ func NewFileDB(dataDir string, segmentMaxBytes int64, slotCount int) *FileDB {
 		denylistPrefix:    "denylist:",
 		allowlistPrefix:   "allowlist:",
 		notifyQueuePrefix: "notifyQueue",
+		userSeqPrefix:     "userSeq:",
 	}
 	var err error
 	f.db, err = bolt.Open(filepath.Join(dataDir, "db"), 0600, nil)

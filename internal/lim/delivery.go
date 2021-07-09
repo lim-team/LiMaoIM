@@ -16,6 +16,8 @@ func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) 
 				return err
 			}
 
+			m.MessageSeq = seq
+
 			newFramer := m.Framer
 			if subscriber == m.FromUID { // 如果是自己则不显示红点
 				newFramer.RedDot = false

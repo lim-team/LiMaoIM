@@ -47,6 +47,7 @@ func TestSendMessage(t *testing.T) {
 	wait.Add(1)
 	c1.SetOnRecv(func(recv *lmproto.RecvPacket) error {
 		assert.Equal(t, "synceOnce", string(recv.Payload))
+		fmt.Println("recv.MessageSeq-->", recv.MessageSeq)
 		wait.Done()
 		return nil
 	})
