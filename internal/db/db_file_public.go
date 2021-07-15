@@ -472,7 +472,7 @@ func (f *FileDB) getSubdir(dir string) ([]string, error) {
 		return nil, err
 	}
 	defer fd.Close()
-	subdirs, err := fd.ReadDir(-1)
+	subdirs, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +491,7 @@ func (f *FileDB) getSubfiles(dir string, suffix string) ([]string, error) {
 		return nil, err
 	}
 	defer fd.Close()
-	subdirs, err := fd.ReadDir(-1)
+	subdirs, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
