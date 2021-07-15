@@ -142,6 +142,7 @@ func (l *LiMao) print() {
 	if l.opts.Mode == TestMode {
 		l.Info("已开启测试模式！测试模式仅供测试使用！")
 	}
+	l.Info("服务模式", zap.String("mode", l.opts.Mode))
 	l.Info("Socket服务", zap.String("addr", l.opts.Addr))
 	l.Info("WebSocket服务", zap.String("wsAddr", l.opts.WSAddr))
 	l.Info("HTTP服务", zap.String("httpAddr", fmt.Sprintf("http://%s", l.opts.HTTPAddr)))
