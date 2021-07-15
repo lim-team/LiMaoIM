@@ -342,9 +342,6 @@ func (c *Client) loopConn() {
 			if err == io.EOF {
 
 			}
-			if !errors.Is(err, net.ErrClosed) && !(err == io.EOF) {
-				c.Error("Failed to decode data", zap.Error(err), zap.String("addr", c.addr))
-			}
 			goto exit
 		}
 		c.handlePacket(frame)
