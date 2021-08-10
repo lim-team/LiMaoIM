@@ -93,7 +93,7 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		if err != nil {
 			break
 		}
-		r.l.startDeliveryMsg(msg, msg.ToUID)
+		r.l.startDeliveryMsg(msg, nil, msg.ToUID)
 	}
 }
 

@@ -1,7 +1,6 @@
 package lim
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -104,15 +103,18 @@ func (d *Datasource) GetSystemUIDs() ([]string, error) {
 }
 
 func (d *Datasource) requestCMD(cmd string, param map[string]interface{}) (string, error) {
-	resp, err := network.Post(d.l.opts.Datasource, []byte(util.ToJSON(map[string]interface{}{
-		"cmd":  cmd,
-		"data": param,
-	})), nil)
+	dataMap := map[string]interface{}{
+		"cmd": cmd,
+	}
+	if param != nil {
+		dataMap["data"] = param
+	}
+	resp, err := network.Post(d.l.opts.Datasource, []byte(util.ToJSON(dataMap)), nil)
 	if err != nil {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(fmt.Sprintf("http状态码错误！[%d]", resp.StatusCode))
+		return "", fmt.Errorf("http状态码错误！[%d]", resp.StatusCode)
 	}
 
 	return resp.Body, nil

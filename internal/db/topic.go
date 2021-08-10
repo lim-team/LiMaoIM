@@ -28,7 +28,8 @@ type Topic struct {
 	segmentMaxBytes int64
 	segmentCache    *lru.Cache
 	sync.Mutex
-	lastSeq atomic.Uint32
+	lastSeq    atomic.Uint32
+	lastMemLog satomic.Value // 最新内存中的一条日志
 }
 
 // NewTopic NewTopic
@@ -112,6 +113,7 @@ func (t *Topic) initSegments() {
 	}
 	t.segmentCache.Add(lastSegmentBaseOffset, sg)
 	t.activeSegment.Store(sg)
+
 }
 
 func (t *Topic) sortSegments(segments []int64) []int64 {

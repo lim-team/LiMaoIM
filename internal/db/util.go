@@ -1,7 +1,6 @@
 package db
 
 import (
-	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,12 +24,6 @@ func CopyFile(dstName, srcName string) (written int64, err error) {
 	}
 	defer dst.Close()
 	return io.Copy(dst, src)
-}
-
-// GetSlotNum GetSlotNum
-func GetSlotNum(slotCount int, v string) uint {
-	value := crc32.ChecksumIEEE([]byte(v))
-	return uint(value % uint32(slotCount))
 }
 
 // GetDirList GetDirList

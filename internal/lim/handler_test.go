@@ -23,8 +23,6 @@ func TestSendMessage(t *testing.T) {
 	l.Start()
 	defer l.Stop()
 
-	fmt.Println(l.opts.DataDir)
-
 	c1 := MustConnectLiMao(l, "test1")
 	defer c1.Disconnect()
 	c2 := MustConnectLiMao(l, "test2")
@@ -33,21 +31,11 @@ func TestSendMessage(t *testing.T) {
 	err := c1.SendMessage(client.NewChannel("test2", 1), []byte(fmt.Sprintf("hello")))
 	assert.NoError(t, err)
 
-	err = c2.SendMessage(client.NewChannel("test1", 1), []byte(fmt.Sprintf("synceOnce")), client.SendOptionWithSyncOnce(true))
-	assert.NoError(t, err)
-
 	var wait sync.WaitGroup
 
 	wait.Add(1)
 	c2.SetOnRecv(func(recv *lmproto.RecvPacket) error {
 		assert.Equal(t, "hello", string(recv.Payload))
-		wait.Done()
-		return nil
-	})
-	wait.Add(1)
-	c1.SetOnRecv(func(recv *lmproto.RecvPacket) error {
-		assert.Equal(t, "synceOnce", string(recv.Payload))
-		fmt.Println("recv.MessageSeq-->", recv.MessageSeq)
 		wait.Done()
 		return nil
 	})

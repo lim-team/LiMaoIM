@@ -1,5 +1,11 @@
 package util
 
+import (
+	"fmt"
+	"hash/crc32"
+	"strings"
+)
+
 // SlotBitMap SlotBitMap
 type SlotBitMap struct {
 	bits    []byte
@@ -24,7 +30,7 @@ func NewSlotBitMapWithBits(bits []byte) *SlotBitMap {
 }
 
 // SetSlot SetSlot
-func (s *SlotBitMap) SetSlot(num uint, v bool) {
+func (s *SlotBitMap) SetSlot(num uint32, v bool) {
 	index := num / 8
 	pos := num % 8
 	if v {
@@ -35,7 +41,7 @@ func (s *SlotBitMap) SetSlot(num uint, v bool) {
 }
 
 // SetSlotForRange SetSlotForRange
-func (s *SlotBitMap) SetSlotForRange(start, end uint, v bool) {
+func (s *SlotBitMap) SetSlotForRange(start, end uint32, v bool) {
 	for i := start; i <= end; i++ {
 		s.SetSlot(i, v)
 	}
@@ -77,6 +83,21 @@ func (s *SlotBitMap) GetVaildSlotNum() int {
 		}
 	}
 	return count
+}
+
+// GetVaildSlots GetVaildSlots
+func (s *SlotBitMap) GetVaildSlots() []uint32 {
+	var slots = make([]uint32, 0)
+	for i := 0; i < len(s.bits); i++ {
+		b := s.bits[i]
+		for j := 0; j < 8; j++ {
+			vaild := (b >> j & 0x01) == 1
+			if vaild {
+				slots = append(slots, uint32(i*8+j))
+			}
+		}
+	}
+	return slots
 }
 
 // ExportSlots ExportSlots
@@ -160,4 +181,38 @@ func SlotsContains(b, subslice []byte) bool {
 
 	}
 	return true
+}
+
+// FormatSlots FormatSlots
+func FormatSlots(slots []uint32) string {
+	if len(slots) == 0 {
+		return ""
+	}
+	formatStr := make([]string, 0)
+	var start uint32 = slots[0]
+	for i := 1; i < len(slots); i++ {
+		if slots[i]-slots[i-1] != 1 {
+			if start == slots[i-1] {
+				formatStr = append(formatStr, fmt.Sprintf("%d", start))
+			} else {
+				formatStr = append(formatStr, fmt.Sprintf("%d-%d", start, slots[i-1]))
+			}
+
+			start = slots[i]
+		}
+		if i == len(slots)-1 {
+			if start == slots[i] {
+				formatStr = append(formatStr, fmt.Sprintf("%d", start))
+			} else {
+				formatStr = append(formatStr, fmt.Sprintf("%d-%d", start, slots[i]))
+			}
+		}
+	}
+	return strings.Join(formatStr, ",")
+}
+
+// GetSlotNum GetSlotNum
+func GetSlotNum(slotCount int, v string) uint32 {
+	value := crc32.ChecksumIEEE([]byte(v))
+	return value % uint32(slotCount)
 }

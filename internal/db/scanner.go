@@ -47,9 +47,11 @@ func (s *Scanner) Scan(segmentPath string, endAppliIndex uint64, callback func(d
 		s.Error("readFullWrapLog is error", zap.Error(err), zap.String("segmentPath", segmentPath))
 		return false, err
 	}
-	if appliIndex > endAppliIndex {
-		s.endScanner()
-		return false, nil
+	if endAppliIndex != 0 {
+		if appliIndex > endAppliIndex {
+			s.endScanner()
+			return false, nil
+		}
 	}
 	err = callback(data)
 	if err != nil {

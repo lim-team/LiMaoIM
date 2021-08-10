@@ -6,9 +6,12 @@ import (
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/lim-team/LiMaoIM/internal/db"
+	"github.com/lim-team/LiMaoIM/internal/lim/rpc"
 	"github.com/lim-team/LiMaoIM/pkg/limlog"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
+	"github.com/lim-team/LiMaoIM/pkg/lmproxyproto"
 	"github.com/lim-team/LiMaoIM/pkg/util"
+	"github.com/pkg/errors"
 	"github.com/tangtaoit/limnet"
 	"go.uber.org/zap"
 )
@@ -40,8 +43,41 @@ func (s *PacketHandler) genMessageID() int64 {
 	return s.messageIDGen.Generate().Int64()
 }
 
+func (s *PacketHandler) handlePing(c *Client) {
+	c.WritePacket(&lmproto.PongPacket{})
+}
+
+// 处理收到消息ack
+func (s *PacketHandler) handleRecvack(c *Client, recvackPacket *lmproto.RecvackPacket) {
+	c.Debug("收到回复包。", zap.String("packet", recvackPacket.String()))
+	// 完成消息（移除重试队列里的消息）
+	err := s.l.retryQueue.finishMessage(c.GetID(), recvackPacket.MessageID)
+	if err != nil {
+		c.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Int64("clientID", c.GetID()), zap.Uint8("deviceFlag", c.deviceFlag.ToUint8()), zap.Int64("messageID", recvackPacket.MessageID))
+	}
+	if recvackPacket.SyncOnce && !recvackPacket.NoPersist {
+		err = s.l.store.UpdateMessageOfUserCursorIfNeed(c.uid, recvackPacket.MessageSeq)
+		if err != nil {
+			c.Warn("更新游标失败！", zap.Error(err), zap.String("uid", c.uid), zap.Uint32("messageSeq", recvackPacket.MessageSeq))
+		}
+	}
+}
+
 // 处理连接
 func (s *PacketHandler) handleConnect(c limnet.Conn, connectPacket *lmproto.ConnectPacket) {
+	if s.l.opts.IsCluster {
+		allocNode := s.l.clusterManager.GetNode(connectPacket.UID) // Get the node where the user is
+		if allocNode == nil {
+			s.Warn("No node is obtained", zap.String("uid", connectPacket.UID))
+			c.Close()
+			return
+		}
+		if allocNode.NodeID != s.l.opts.NodeID {
+			s.Warn("The user is not on this node", zap.Any("shouldNode", allocNode))
+			s.writeConnack(c, 0, lmproto.ReasonUserNotOnNode)
+			return
+		}
+	}
 	c.SetVersion(connectPacket.Version) // Set the protocol version of the current client
 	s.Debug("Connection package received", zap.Any("packet", connectPacket))
 	timeDiff := time.Now().UnixNano()/1000/1000 - connectPacket.ClientTimestamp
@@ -55,15 +91,6 @@ func (s *PacketHandler) handleConnect(c limnet.Conn, connectPacket *lmproto.Conn
 			s.Error("Failed to query the user's token", zap.Error(err), zap.String("packet", connectPacket.String()))
 			s.writeConnackError(c)
 			return
-		}
-		if token == "" { // 当token为空 说明此uid没注册过，则注册
-			err = s.l.store.UpdateUserToken(connectPacket.UID, connectPacket.DeviceFlag, lmproto.DeviceLevelMaster, connectPacket.Token)
-			if err != nil {
-				s.Error("Update user token fail", zap.Error(err), zap.String("packet", connectPacket.String()))
-				s.writeConnackError(c)
-				return
-			}
-			token = connectPacket.Token
 		}
 		// token不匹配
 		if token != connectPacket.Token {
@@ -121,29 +148,6 @@ func (s *PacketHandler) handleConnect(c limnet.Conn, connectPacket *lmproto.Conn
 	s.l.onlineStatusWebhook.Online(connectPacket.UID, connectPacket.DeviceFlag)
 }
 
-func (s *PacketHandler) handlePing(c *Client) {
-	s.Debug("收到Ping", zap.Int64("id", c.GetID()))
-	c.WritePacket(&lmproto.PongPacket{})
-}
-
-// 处理收到消息ack
-func (s *PacketHandler) handleRecvack(c *Client, recvackPacket *lmproto.RecvackPacket) {
-	c.Debug("收到回复包。", zap.String("packet", recvackPacket.String()))
-	// 完成消息（移除重试队列里的消息）
-	err := s.l.retryQueue.finishMessage(c.GetID(), recvackPacket.MessageID)
-	if err != nil {
-		c.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Int64("clientID", c.GetID()), zap.Uint8("deviceFlag", c.deviceFlag.ToUint8()), zap.Int64("messageID", recvackPacket.MessageID))
-	}
-
-	// if recvackPacket.SyncOnce && !recvackPacket.NoPersist {
-	// 	err = s.l.store.DeleteMessageOfUserWithMessageID(c.uid, recvackPacket.MessageID)
-	// 	if err != nil {
-	// 		c.Warn("删除消息失败！", zap.Error(err), zap.String("uid", c.uid), zap.Int64("messageID", recvackPacket.MessageID))
-	// 	}
-	// }
-
-}
-
 // Handling client disconnects
 func (s *PacketHandler) handleDisconnect(c limnet.Conn) {
 
@@ -181,8 +185,13 @@ func (s *PacketHandler) writeConnack(conn limnet.Conn, timeDiff int64, code lmpr
 
 // HandleSend HandleSend
 func (s *PacketHandler) HandleSend(c *Client, sendPacket *lmproto.SendPacket) {
-	s.Debug("Received the message", zap.Any("packet", sendPacket))
-
+	// s.Debug("Received the message", zap.Any("packet", sendPacket))
+	// c.WritePacket(&lmproto.SendackPacket{
+	// 	ClientSeq:   sendPacket.ClientSeq,
+	// 	ClientMsgNo: sendPacket.ClientMsgNo,
+	// 	ReasonCode:  lmproto.ReasonSuccess,
+	// })
+	// return
 	var messageID = s.genMessageID()
 	if c.conn.Version() > 2 {
 		signStr := sendPacket.VerityString()
@@ -223,8 +232,63 @@ func (s *PacketHandler) HandleSend(c *Client, sendPacket *lmproto.SendPacket) {
 			})
 			return
 		}
-
 		sendPacket.Payload = decodePayload
+	}
+	if !s.l.opts.IsCluster {
+		// 处理属于本节点的发送包
+		s.handleLocalSend(c, sendPacket)
+		return
+	}
+	allocNode := s.l.clusterManager.GetNode(c.uid) // 获取分配的节点
+	if allocNode == nil {
+		s.Error("没有获取到节点，关闭连接！")
+		return
+	}
+	if allocNode.NodeID != s.l.opts.NodeID {
+		s.Warn("用户没在此节点上，不能发送消息！将断开连接！", zap.Any("shouldNode", allocNode))
+		c.conn.Close()
+		return
+	}
+	fakeChannelID := sendPacket.ChannelID
+	if sendPacket.ChannelType == ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(c.uid, sendPacket.ChannelID)
+	}
+	node := s.l.clusterManager.GetNode(fakeChannelID) // 获取接受频道所在节点
+	if node == nil {
+		s.Error("没有获取到节点，关闭连接！")
+		return
+	}
+	/**
+	如果频道在当前节点，则先存储频道消息，然后获取频道所有订阅者，找到订阅者们所属的各个节点，然后将消息转发给对应的节点
+	如果不在当前节点，则转发给对应的节点
+	**/
+	if node.NodeID != s.l.opts.NodeID {
+		packetData, _ := c.l.protocol.EncodePacket(sendPacket, lmproto.LatestVersion)
+		req := &rpc.ForwardSendPacketReq{
+			SendPacket:     packetData,
+			FromUID:        c.uid,
+			FromDeviceFlag: int32(c.deviceFlag),
+		}
+		// 转发消息到对应的节点
+		resp, err := s.l.nodeRemoteCall.ForwardSendPacket(req, node.NodeID)
+		if err != nil {
+			s.Error("转发消息失败！", zap.Error(err), zap.Any("node", node))
+			c.WritePacket(&lmproto.SendackPacket{
+				ClientSeq:   sendPacket.ClientSeq,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				MessageID:   messageID,
+				ReasonCode:  lmproto.ReasonError,
+			})
+			return
+		}
+		c.WritePacket(&lmproto.SendackPacket{
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			MessageID:   resp.MessageID,
+			MessageSeq:  uint32(resp.MessageSeq),
+			ReasonCode:  lmproto.ReasonCode(resp.ReasonCode),
+		})
+		return
 	}
 	// 处理属于本节点的发送包
 	s.handleLocalSend(c, sendPacket)
@@ -240,11 +304,42 @@ func (s *PacketHandler) handleLocalSend(c *Client, sendPacket *lmproto.SendPacke
 		ReasonCode:  reasonCode,
 	})
 }
+
+func (s *PacketHandler) allowSendOfPersonChannel(fromUID, toUID string) (bool, error) {
+	fromChannel, err := s.l.channelManager.GetChannel(fromUID, ChannelTypePerson)
+	if err != nil {
+		return false, errors.New("获取发送者的频道失败！")
+	}
+	if fromChannel != nil {
+		allow := fromChannel.Allow(toUID)
+		return allow, nil
+	}
+	return false, nil
+}
+
 func (s *PacketHandler) handleSendPacketWithFrom(fromUID string, fromDeviceFlag lmproto.DeviceFlag, sendPacket *lmproto.SendPacket) (int64, uint32, lmproto.ReasonCode, error) {
+	var allocNode *lmproxyproto.Node // 获取分配的节点
+	if s.l.opts.IsCluster {
+		allocNode = s.l.clusterManager.GetNode(fromUID) // 获取分配的节点
+	}
+	if s.l.opts.IsCluster && allocNode == nil {
+		s.Error("没有获取到节点，关闭连接！", zap.String("fromUID", fromUID))
+		return 0, 0, lmproto.ReasonUserNotOnNode, errors.New("没有获取到节点，关闭连接！")
+	}
 	fakeChannelID := sendPacket.ChannelID
 	if sendPacket.ChannelType == ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, sendPacket.ChannelID)
+		allow, err := s.allowSendOfPersonChannel(fromUID, sendPacket.ChannelID)
+		if err != nil {
+			s.Error("判断个人频道是否允许发送消息失败！", zap.Error(err))
+			return 0, 0, lmproto.ReasonError, errors.New("判断个人频道是否允许发送消息失败！")
+		}
+		if !allow {
+			s.Error("允许给用户发送消息", zap.String("fromUID", fromUID), zap.String("toUID", sendPacket.ChannelID))
+			return 0, 0, lmproto.ReasonNotAllowSend, errors.New("不允许发送!")
+		}
 	}
+
 	var messageID = s.genMessageID()
 	// 获取发送消息的频道
 	channel, reasonCode, err := s.getSendChannel(fromUID, fakeChannelID, sendPacket.ChannelType)
@@ -287,14 +382,14 @@ func (s *PacketHandler) handleSendPacketWithFrom(fromUID string, fromDeviceFlag 
 		MessageID:   recvPacket.MessageID,
 		MessageSeq:  recvPacket.MessageSeq,
 		ClientMsgNo: recvPacket.ClientMsgNo,
-		Timestamp:   int32(time.Now().Unix()),
+		Timestamp:   recvPacket.Timestamp,
 		FromUID:     recvPacket.FromUID,
 		ChannelID:   fakeChannelID,
 		ChannelType: recvPacket.ChannelType,
 		Payload:     recvPacket.Payload,
 	}
 	if !sendPacket.NoPersist && !sendPacket.SyncOnce { // If it is SyncOnce, it will not be stored, because SyncOnce messages are stored in the user’s respective queues.
-		_, err = s.l.store.AppendMessage(messageD)
+		err = s.l.store.AppendMessage(messageD)
 		if err != nil {
 			s.Error("Failed to save history message", zap.Error(err))
 			return messageID, messageSeq, lmproto.ReasonError, err
@@ -336,14 +431,54 @@ func (s *PacketHandler) getSendChannel(fromUID string, channelID string, channel
 	if s.l.opts.Mode != TestMode {
 		if !channel.Allow(fromUID) {
 			s.Error("The user is not in the white list or in the black list", zap.String("fromUID", fromUID), zap.Error(err))
-			return nil, lmproto.ReasonInBlacklist, nil
+			return nil, lmproto.ReasonNotAllowSend, nil
 		}
 		if channel.ChannelType != ChannelTypePerson {
 			if !channel.IsSubscriber(fromUID) {
 				s.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channelID), zap.Uint8("channel_type", channelType), zap.Error(err))
-				return nil, lmproto.ReasonSubscriberNotExist, nil
+				return nil, lmproto.ReasonNotAllowSend, nil
 			}
 		}
 	}
 	return channel, lmproto.ReasonSuccess, nil
+}
+
+//########## 其他节点调用 ##########
+
+// OnSendPacket 其他服务端节点发送过来的包
+func (s *PacketHandler) OnSendPacket(fromUID string, deviceFlag lmproto.DeviceFlag, sendPacket *lmproto.SendPacket) (messageID int64, messageSeq uint32, reasonCode lmproto.ReasonCode, err error) {
+	s.Debug("收到转发发送包->", zap.String("fromUID", fromUID), zap.Any("packet", sendPacket))
+	return s.handleSendPacketWithFrom(fromUID, deviceFlag, sendPacket)
+}
+
+// OnRecvPacket 其他服务端节点发送过来的接受包
+func (s *PacketHandler) OnRecvPacket(deviceFlag lmproto.DeviceFlag, recvPacket *lmproto.RecvPacket, users []string) error {
+	s.Debug("收到转发接受包->", zap.Any("packet", recvPacket), zap.Strings("subscribers", users))
+	message := &Message{
+		RecvPacket:     *recvPacket,
+		fromDeviceFlag: deviceFlag,
+	}
+	return s.l.handleLocalSubscribersMessage(message, users)
+}
+
+// OnGetSubscribers 其他节点获取订阅者
+func (s *PacketHandler) OnGetSubscribers(channelID string, channelType uint8) ([]string, error) {
+	channel, err := s.l.channelManager.GetChannel(channelID, channelType)
+	if err != nil {
+		return nil, err
+	}
+	if channel == nil {
+		s.Error("频道不存在！", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+		return nil, errors.New("频道不存在！")
+	}
+	return channel.GetAllSubscribers(), nil
+}
+
+// OnGetChannelMessageSeq OnGetChannelMessageSeq
+func (s *PacketHandler) OnGetChannelMessageSeq(channelID string, channelType uint8) (uint32, error) {
+	messageSeq, err := s.l.store.GetNextMessageSeq(channelID, channelType)
+	if err != nil {
+		return 0, err
+	}
+	return messageSeq, nil
 }

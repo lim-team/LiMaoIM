@@ -6,6 +6,7 @@ import (
 	"github.com/gin-contrib/pprof"
 	"github.com/lim-team/LiMaoIM/pkg/lmhttp"
 	"github.com/tangtaoit/limnet/pkg/limlog"
+	"go.uber.org/zap"
 )
 
 // APIServer ApiServer
@@ -45,6 +46,7 @@ func (s *APIServer) Start() {
 			panic(err)
 		}
 	}()
+	s.Info("服务开启", zap.String("addr", s.l.opts.HTTPAddr))
 }
 
 func (s *APIServer) setRoutes() {

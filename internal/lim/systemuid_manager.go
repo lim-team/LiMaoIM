@@ -1,12 +1,17 @@
 package lim
 
-import "sync"
+import (
+	"sync"
+
+	"go.uber.org/atomic"
+)
 
 // SystemUIDManager System uid management
 type SystemUIDManager struct {
 	datasource IDatasource
 	l          *LiMao
 	systemUIDs sync.Map
+	loaded     atomic.Bool
 }
 
 // NewSystemUIDManager NewSystemUIDManager
@@ -24,11 +29,15 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 	if !s.l.opts.HasDatasource() {
 		return nil
 	}
+	if s.loaded.Load() {
+		return nil
+	}
 	var err error
 	systemUIDs, err := s.datasource.GetSystemUIDs()
 	if err != nil {
 		return err
 	}
+	s.loaded.Store(true)
 	if len(systemUIDs) > 0 {
 		for _, systemUID := range systemUIDs {
 			s.systemUIDs.Store(systemUID, true)

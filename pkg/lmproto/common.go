@@ -144,6 +144,8 @@ const (
 	ReasonPayloadDecodeError
 	// ReasonForwardSendPacketError 转发发送包失败
 	ReasonForwardSendPacketError
+	// ReasonNotAllowSend 不允许发送消息
+	ReasonNotAllowSend
 )
 
 func (r ReasonCode) String() string {
@@ -156,6 +158,8 @@ func (r ReasonCode) String() string {
 		return "ReasonAuthFail"
 	case ReasonSubscriberNotExist:
 		return "ReasonSubscriberNotExist"
+	case ReasonNotAllowSend:
+		return "ReasonNotAllowSend"
 	}
 	return "UNKNOWN"
 }

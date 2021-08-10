@@ -2,6 +2,7 @@ package lmproto
 
 import (
 	"bytes"
+	"io"
 )
 
 // Encoder 编码者
@@ -91,12 +92,7 @@ func (e *Encoder) WriteUint64(i uint64) {
 
 // WriteUint32 WriteUint32
 func (e *Encoder) WriteUint32(i uint32) {
-	e.w.Write([]byte{
-		byte(i >> 24),
-		byte(i >> 16),
-		byte(i >> 8),
-		byte(i & 0xFF),
-	})
+	WriteUint32(i, e.w)
 }
 
 // WriteString WriteString
@@ -137,4 +133,44 @@ func (e *Encoder) WriteVariable(v int) {
 		b = append(b, byte(digit))
 	}
 	e.w.Write(b)
+}
+
+// WriteUint32 WriteUint32
+func WriteUint32(v uint32, w io.Writer) error {
+	if _, err := w.Write([]byte{
+		byte(v >> 24),
+		byte(v >> 16),
+		byte(v >> 8),
+		byte(v & 0xFF),
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// WriteBinary WriteBinary
+func WriteBinary(b []byte, w io.Writer) error {
+	var err error
+	if len(b) == 0 {
+		err = WriteInt16(0, w)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = WriteInt16(len(b), w)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WriteInt16 WriteInt16
+func WriteInt16(i int, w io.Writer) error {
+	_, err := w.Write([]byte{byte(i >> 8), byte(i & 0xFF)})
+	return err
 }

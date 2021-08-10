@@ -8,15 +8,16 @@ import (
 )
 
 // 存储在消息队列内 如果需要
-func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) error {
+func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) (map[string]uint32, error) {
+	subscriberSeqMap := map[string]uint32{}
 	for _, subscriber := range subscribers {
 		if m.SyncOnce && !m.NoPersist {
 			seq, err := l.store.GetUserNextMessageSeq(subscriber)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			m.MessageSeq = seq
+			subscriberSeqMap[subscriber] = seq
 
 			newFramer := m.Framer
 			if subscriber == m.FromUID { // 如果是自己则不显示红点
@@ -30,6 +31,7 @@ func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) 
 				ClientMsgNo: m.ClientMsgNo,
 				Timestamp:   m.Timestamp,
 				FromUID:     m.FromUID,
+				QueueUID:    subscriber,
 				ChannelID:   m.ChannelID,
 				ChannelType: m.ChannelType,
 				Payload:     m.Payload,
@@ -37,25 +39,25 @@ func (l *LiMao) storeMessageToUserQueueIfNeed(m *Message, subscribers []string) 
 			if m.ChannelType == ChannelTypePerson && m.ChannelID == m.ToUID {
 				messageD.ChannelID = m.FromUID
 			}
-			_, err = l.store.AppendMessageOfUser(subscriber, messageD)
+			err = l.store.AppendMessageOfUser(messageD)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return subscriberSeqMap, nil
 }
 
 // ==================== 消息投递 ====================
-func (l *LiMao) startDeliveryMsg(m *Message, subscribers ...string) {
+func (l *LiMao) startDeliveryMsg(m *Message, subscriberSeqMap map[string]uint32, subscribers ...string) {
 
 	l.deliveryMsgPool.Submit(func() {
-		l.DeliveryMsg(m, subscribers...)
+		l.DeliveryMsg(m, subscriberSeqMap, subscribers...)
 	})
 }
 
 // DeliveryMsg 投递消息
-func (l *LiMao) DeliveryMsg(msg *Message, subscribers ...string) {
+func (l *LiMao) DeliveryMsg(msg *Message, subscriberSeqMap map[string]uint32, subscribers ...string) {
 
 	offlineSubscribers := make([]string, 0, len(subscribers)) // 离线订阅者
 
@@ -67,7 +69,7 @@ func (l *LiMao) DeliveryMsg(msg *Message, subscribers ...string) {
 			channelID = msg.FromUID
 		}
 		if recvClients != nil && len(recvClients) > 0 {
-			l.Debug("接受客户端数量", zap.String("UID", msg.ToUID), zap.Int("count", len(recvClients)))
+			l.Debug("接受客户端数量", zap.String("subscriber", subscriber), zap.Int("count", len(recvClients)))
 			for _, recvClient := range recvClients {
 				if msg.toClientID != 0 && recvClient.GetID() != msg.toClientID { // 如果指定的ToClientID则消息只发给指定的设备，非指定设备不投递
 					l.Debug("不是指定的设备投递！", zap.Int64("toClientID", msg.toClientID), zap.Int64("recvClientID", recvClient.GetID()))
@@ -81,24 +83,30 @@ func (l *LiMao) DeliveryMsg(msg *Message, subscribers ...string) {
 				*newMsg = *msg
 				newMsg.ToUID = subscriber
 				newMsg.toClientID = recvClient.GetID()
+				if len(subscriberSeqMap) > 0 {
+					seq := subscriberSeqMap[subscriber]
+					if seq != 0 {
+						newMsg.MessageSeq = seq
+					}
+				}
 				l.retryQueue.startInFlightTimeout(newMsg)
 
 				// 发送消息
 				recvPacket := &lmproto.RecvPacket{
 					Framer: lmproto.Framer{
-						RedDot:    msg.RedDot,
-						SyncOnce:  msg.SyncOnce,
-						NoPersist: msg.NoPersist,
+						RedDot:    newMsg.RedDot,
+						SyncOnce:  newMsg.SyncOnce,
+						NoPersist: newMsg.NoPersist,
 					},
-					Setting:     msg.Setting,
-					ClientMsgNo: msg.ClientMsgNo,
-					MessageID:   msg.MessageID,
-					MessageSeq:  msg.MessageSeq,
-					Timestamp:   msg.Timestamp,
-					FromUID:     msg.FromUID,
+					Setting:     newMsg.Setting,
+					ClientMsgNo: newMsg.ClientMsgNo,
+					MessageID:   newMsg.MessageID,
+					MessageSeq:  newMsg.MessageSeq,
+					Timestamp:   newMsg.Timestamp,
+					FromUID:     newMsg.FromUID,
 					ChannelID:   channelID,
-					ChannelType: msg.ChannelType,
-					Payload:     msg.Payload,
+					ChannelType: newMsg.ChannelType,
+					Payload:     newMsg.Payload,
 				}
 				if recvClient.conn.Version() > 2 {
 
@@ -136,6 +144,32 @@ func (l *LiMao) DeliveryMsg(msg *Message, subscribers ...string) {
 	}
 	if len(offlineSubscribers) > 0 {
 		l.Debug("Offline subscribers", zap.Strings("offlineSubscribers", offlineSubscribers))
+		// 推送离线到上层应用
+		l.TriggerEvent(&Event{
+			Event: EventMsgOffline,
+			Data: struct {
+				MessageResp
+				ToUIDs []string `json:"to_uids"`
+			}{
+				MessageResp: MessageResp{
+					Header: MessageHeader{
+						RedDot:    util.BoolToInt(msg.RedDot),
+						SyncOnce:  util.BoolToInt(msg.SyncOnce),
+						NoPersist: util.BoolToInt(msg.NoPersist),
+					},
+					Setting:     msg.Setting.ToUint8(),
+					ClientMsgNo: msg.ClientMsgNo,
+					MessageID:   msg.MessageID,
+					MessageSeq:  msg.MessageSeq,
+					FromUID:     msg.FromUID,
+					ChannelID:   msg.ChannelID,
+					ChannelType: msg.ChannelType,
+					Timestamp:   msg.Timestamp,
+					Payload:     msg.Payload,
+				},
+				ToUIDs: offlineSubscribers,
+			},
+		})
 	}
 
 }
@@ -162,4 +196,17 @@ func (l *LiMao) clientIsSelf(client *Client, msg *Message) bool {
 		return true
 	}
 	return false
+}
+
+// ==================== 节点数据投递 ====================
+
+func (l *LiMao) startDeliveryNodeData(data *NodeInFlightData) {
+	l.nodeInFlightQueue.startInFlightTimeout(data) // 重新投递
+
+	err := l.nodeRemoteCall.ForwardRecvPacket(data.Req, data.NodeID)
+	if err != nil {
+		l.Warn("请求grpc投递节点数据失败！", zap.Error(err))
+		return
+	}
+	l.nodeInFlightQueue.finishMessage(data.No)
 }

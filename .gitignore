@@ -33,3 +33,5 @@ benchmarks/results/
 
 .vscode/
 limaodata*
+
+.DS_Store

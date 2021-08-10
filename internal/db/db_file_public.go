@@ -1,20 +1,23 @@
 package db
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 	"github.com/lim-team/LiMaoIM/pkg/util"
 	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
+	"go.uber.org/zap"
 )
 
 var (
@@ -29,12 +32,19 @@ func (f *FileDB) Open() error {
 
 // Close Close
 func (f *FileDB) Close() error {
-	f.lock.StopCleanLoop()
+
 	err := f.db.Close()
 	if err != nil {
 		return err
 	}
-	return f.pool.Close()
+	err = f.pool.Close()
+	if err != nil {
+		return err
+	}
+
+	f.lock.StopCleanLoop()
+
+	return nil
 }
 
 // Sync Sync
@@ -98,7 +108,20 @@ func (f *FileDB) GetChannel(channelID string, channelType uint8) (map[string]int
 // DeleteChannel DeleteChannel
 func (f *FileDB) DeleteChannel(channelID string, channelType uint8) error {
 	slotNum := f.slotNumForChannel(channelID, channelType)
-	return f.delete(slotNum, []byte(f.getChannelKey(channelID, channelType)))
+	err := f.delete(slotNum, []byte(f.getChannelKey(channelID, channelType)))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteChannelAndClearMessages DeleteChannelAndClearMessages
+func (f *FileDB) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
+	err := f.DeleteChannel(channelID, channelType)
+	if err != nil {
+		return err
+	}
+	return f.DeleteMessages(channelID, channelType)
 }
 
 // ExistChannel ExistChannel
@@ -216,34 +239,90 @@ func (f *FileDB) GetNextMessageSeq(channelID string, channelType uint8) (uint32,
 // GetUserNextMessageSeq GetUserNextMessageSeq
 func (f *FileDB) GetUserNextMessageSeq(uid string) (uint32, error) {
 	slot := f.slotNum(uid)
-	var seq uint64
-	err := f.db.Update(func(t *bolt.Tx) error {
-		b, err := f.getSlotBucket(slot, t)
-		if err != nil {
-			return err
-		}
-		userBucket, err := b.CreateBucketIfNotExists([]byte(fmt.Sprintf("%s%s", f.userSeqPrefix, uid)))
-		if err != nil {
-			return err
-		}
-		seq, err = userBucket.NextSequence()
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return uint32(seq), err
+	return f.getOrNewSlot(slot).GetTopic(uid).NextOffset()
+	// var seq uint64
+	// err := f.db.Update(func(t *bolt.Tx) error {
+	// 	b, err := f.getSlotBucket(slot, t)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	userBucket, err := b.CreateBucketIfNotExists([]byte(fmt.Sprintf("%s%s", f.userSeqPrefix, uid)))
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	seq, err = userBucket.NextSequence()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	return nil
+	// })
+	// return uint32(seq), err
 }
 
 // AppendMessage AppendMessage
 func (f *FileDB) AppendMessage(m *Message) (int, error) {
-	return f.topic(m.ChannelID, m.ChannelType).AppendLog(m)
+	slot := f.slotNumForChannel(m.ChannelID, m.ChannelType)
+	topic := f.topicName(m.ChannelID, m.ChannelType)
+	return f.appendMessage(slot, topic, m)
 }
 
 // AppendMessageOfUser Append message to user
-func (f *FileDB) AppendMessageOfUser(uid string, m *Message) (int, error) {
+func (f *FileDB) AppendMessageOfUser(m *Message) (int, error) {
+	if strings.TrimSpace(m.QueueUID) == "" {
+		return 0, errors.New("QueueUID不能为空！")
+	}
+	uid := m.QueueUID
 	slot := f.slotNum(uid)
-	return f.getOrNewSlot(slot).GetTopic(uid).AppendLog(m)
+	return f.appendMessage(slot, uid, m)
+}
+
+func (f *FileDB) appendMessage(slot uint32, topic string, m *Message) (int, error) {
+	return f.getOrNewSlot(slot).GetTopic(topic).AppendLog(m)
+}
+
+// UpdateMessageOfUserCursorIfNeed UpdateMessageOfUserCursorIfNeed
+func (f *FileDB) UpdateMessageOfUserCursorIfNeed(uid string, offset uint32) error {
+	slot := f.slotNum(uid)
+	lastSeq, _ := f.getOrNewSlot(slot).GetTopic(uid).GetLastSeq()
+	actOffset := offset
+	if offset > lastSeq { // 如果传过来的大于系统里最新的 则用最新的
+		actOffset = lastSeq
+	}
+	return f.db.Update(func(t *bolt.Tx) error {
+		b, err := f.getSlotBucket(slot, t)
+		if err != nil {
+			return err
+		}
+		key := f.getMessageOfUserCursorKey(uid)
+		value := b.Get([]byte(key))
+		if len(value) > 0 {
+			offset64, _ := strconv.ParseUint(string(value), 10, 64)
+			oldOffset := uint32(offset64)
+			if actOffset <= oldOffset && oldOffset < lastSeq {
+				return nil
+			}
+		}
+		return b.Put([]byte(key), []byte(fmt.Sprintf("%d", actOffset)))
+	})
+}
+
+// GetMessageOfUserCursor GetMessageOfUserCursor
+func (f *FileDB) GetMessageOfUserCursor(uid string) (uint32, error) {
+	slot := f.slotNum(uid)
+	var offset uint32 = 0
+	err := f.db.View(func(t *bolt.Tx) error {
+		b, err := f.getSlotBucket(slot, t)
+		if err != nil {
+			return err
+		}
+		value := b.Get([]byte(f.getMessageOfUserCursorKey(uid)))
+		if len(value) > 0 {
+			offset64, _ := strconv.ParseUint(string(value), 10, 64)
+			offset = uint32(offset64)
+		}
+		return nil
+	})
+	return offset, err
 }
 
 // AppendMessageOfNotifyQueue AppendMessageOfNotifyQueue
@@ -350,6 +429,7 @@ func (f *FileDB) GetConversations(uid string) ([]*Conversation, error) {
 // GetMessages 获取消息
 func (f *FileDB) GetMessages(channelID string, channelType uint8, offset uint32, limit uint64) ([]*Message, error) {
 	var messages = make([]*Message, 0, limit)
+	f.Info("GetMessages", zap.Uint32("offset", offset), zap.Uint64("limit", limit))
 	err := f.topic(channelID, channelType).ReadLogs(int64(offset), limit, func(data []byte) error {
 		m := &Message{}
 		err := UnmarshalMessage(data, m)
@@ -362,6 +442,58 @@ func (f *FileDB) GetMessages(channelID string, channelType uint8, offset uint32,
 	if err != nil {
 		return nil, err
 	}
+	f.Info("Reuslt-GetMessages", zap.Int("count", len(messages)))
+	if len(messages) > 0 {
+		f.Info("firstMessageSeq", zap.Uint32("messageSeq", messages[0].MessageSeq))
+	}
+	return messages, nil
+}
+
+// GetLastMessages 获取最新的消息
+func (f *FileDB) GetLastMessages(channelID string, channelType uint8, endOffset uint32, limit uint64) ([]*Message, error) {
+	var messages = make([]*Message, 0, limit)
+	err := f.topic(channelID, channelType).ReadLastLogs(limit, func(data []byte) error {
+		m := &Message{}
+		err := UnmarshalMessage(data, m)
+		if err != nil {
+			return err
+		}
+		if endOffset != 0 && m.MessageSeq <= endOffset {
+			return nil
+		}
+		messages = append(messages, m)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+// GetMessagesOfUser 获取用户队列内的消息
+func (f *FileDB) GetMessagesOfUser(uid string, offset uint32, limit uint64) ([]*Message, error) {
+	slot := f.slotNum(uid)
+	var messages = make([]*Message, 0, limit)
+
+	maxOffset, err := f.GetMessageOfUserCursor(uid)
+	if err != nil {
+		return nil, err
+	}
+	offst := offset
+	if offset < maxOffset {
+		offst = maxOffset
+	}
+
+	fmt.Println("maxOffset-->", uid, offst)
+	f.getOrNewSlot(slot).GetTopic(uid).ReadLogs(int64(offst+1), limit, func(data []byte) error {
+		m := &Message{}
+		err := UnmarshalMessage(data, m)
+		if err != nil {
+			return err
+		}
+		messages = append(messages, m)
+		return nil
+	})
 	return messages, nil
 }
 
@@ -372,31 +504,30 @@ func (f *FileDB) GetMessage(channelID string, channelType uint8, messageSeq uint
 	return message, err
 }
 
+// DeleteMessages DeleteMessages
+func (f *FileDB) DeleteMessages(channelID string, channelType uint8) error {
+	f.topic(channelID, channelType)
+	return nil
+}
+
 // GetMetaData GetMetaData
 func (f *FileDB) GetMetaData() (uint64, error) {
 	var applied uint64 = 0
-	f.db.View(func(t *bbolt.Tx) error {
-		bucket, err := t.CreateBucketIfNotExists([]byte("metadata"))
-		if err != nil {
-			return err
-		}
+	err := f.db.View(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
 		value := bucket.Get([]byte(f.getAppliIndexKey()))
 		if len(value) > 0 {
 			applied, _ = strconv.ParseUint(string(value), 10, 64)
 		}
 		return nil
 	})
-
-	return applied, nil
+	return applied, err
 }
 
 // SaveMetaData SaveMetaData
 func (f *FileDB) SaveMetaData(appliIndex uint64) error {
 	return f.db.Update(func(t *bbolt.Tx) error {
-		bucket, err := t.CreateBucketIfNotExists([]byte("metadata"))
-		if err != nil {
-			return err
-		}
+		bucket := f.getRootBucket(t)
 		return bucket.Put([]byte(f.getAppliIndexKey()), []byte(fmt.Sprintf("%d", appliIndex)))
 	})
 }
@@ -408,25 +539,6 @@ func (f *FileDB) PrepareSnapshot() (*Snapshot, error) {
 		return nil, err
 	}
 	return NewSnapshot(appliIndex), nil
-}
-
-func (f *FileDB) writeSnapshotHeader(slot int, topic string, baseOffset int64, w io.Writer) error {
-	slotByte := make([]byte, 4)
-	Encoding.PutUint32(slotByte, uint32(slot))
-	if _, err := w.Write(slotByte); err != nil {
-		return err
-	}
-	topicLenBytes := make([]byte, 2)
-	Encoding.PutUint16(topicLenBytes, uint16(len(topic)))
-	if _, err := w.Write([]byte(topic)); err != nil {
-		return err
-	}
-	baseOffsetBytes := make([]byte, 8)
-	Encoding.PutUint64(baseOffsetBytes, uint64(baseOffset))
-	if _, err := w.Write(baseOffsetBytes); err != nil {
-		return err
-	}
-	return nil
 }
 
 // SaveSnapshot SaveSnapshot
@@ -466,96 +578,298 @@ func (f *FileDB) SaveSnapshot(snapshot *Snapshot, w io.Writer) error {
 	return err
 }
 
-func (f *FileDB) getSubdir(dir string) ([]string, error) {
-	fd, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-	defer fd.Close()
-	subdirs, err := fd.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-	dirs := make([]string, 0, len(subdirs))
-	for _, subdir := range subdirs {
-		if subdir.IsDir() {
-			dirs = append(dirs, subdir.Name())
-		}
+// BackupSlots BackupSlots
+func (f *FileDB) BackupSlots(slots []byte, w io.Writer) error {
 
+	slotBitM := util.NewSlotBitMapWithBits(slots)
+	vauldSlots := slotBitM.GetVaildSlots()
+	if len(vauldSlots) == 0 {
+		return nil
 	}
-	return dirs, nil
-}
-func (f *FileDB) getSubfiles(dir string, suffix string) ([]string, error) {
-	fd, err := os.Open(dir)
-	if err != nil {
-		return nil, err
+	var err error
+	if _, err = w.Write(BackupMagicNumber[:]); err != nil {
+		return err
 	}
-	defer fd.Close()
-	subdirs, err := fd.Readdir(-1)
-	if err != nil {
-		return nil, err
+	if err = lmproto.WriteBinary(slots, w); err != nil {
+		return err
 	}
-	files := make([]string, 0, len(subdirs))
-	for _, subdir := range subdirs {
-		if !subdir.IsDir() && strings.HasSuffix(subdir.Name(), suffix) {
-			files = append(files, subdir.Name())
-		}
 
+	if err = f.backupBaseData(vauldSlots, w); err != nil {
+		return err
 	}
-	return files, nil
+	if err = f.backupMessages(vauldSlots, w); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (f *FileDB) getAllSegmentInfo() ([]*segmentInfo, error) {
-	slotDir := filepath.Join(f.dataDir, "slots")
-	slotList, err := f.getSubdir(slotDir)
-	if err != nil {
-		return nil, err
-	}
-	segmentInfos := make([]*segmentInfo, 0)
-	for _, slotStr := range slotList {
-		segmentI := &segmentInfo{}
-		topicDir := filepath.Join(slotDir, slotStr, "topics")
-		topicList, err := f.getSubdir(topicDir)
-		if err != nil {
-			return nil, err
-		}
-		slot, err := strconv.Atoi(slotStr)
-		if err != nil {
-			return nil, err
-		}
-		segmentI.slot = slot
-		for _, topic := range topicList {
-			segmentI.topic = topic
-			logFiles, err := f.getSubfiles(filepath.Join(topicDir, topic, "logs"), logSuffix)
+func (f *FileDB) backupBaseData(slots []uint32, w io.Writer) error {
+
+	return f.db.View(func(t *bolt.Tx) error {
+		for _, slot := range slots {
+			encoder := lmproto.NewEncoder()
+
+			b, err := f.getSlotBucket(slot, t)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			sort.Sort(sort.StringSlice(logFiles))
-			baseOffsets := make([]int64, 0, len(logFiles))
-			for _, logFile := range logFiles {
-				baseOffset, err := strconv.ParseInt(strings.TrimSuffix(logFile, logSuffix), 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				baseOffsets = append(baseOffsets, baseOffset)
+			encoder.WriteBytes(BackupSlotMagicNumber[:])
+			encoder.WriteUint32(slot)
+			encoder.WriteInt32(int32(b.Stats().KeyN))
+
+			err = b.ForEach(func(k, v []byte) error {
+				encoder.WriteBinary(k)
+				encoder.WriteBinary(v)
+				return nil
+			})
+			if err != nil {
+				return err
 			}
-			segmentI.baseOffsets = baseOffsets
+			_, err = w.Write(encoder.Bytes())
+			if err != nil {
+				return err
+			}
+
 		}
-		segmentInfos = append(segmentInfos, segmentI)
-	}
-	return segmentInfos, nil
+		return nil
+	})
 }
 
-type segmentInfo struct {
-	slot        int
-	topic       string
-	baseOffsets []int64
+func (f *FileDB) backupMessages(slots []uint32, w io.Writer) error {
+
+	segmentInfos, err := f.getSegmentInfo(slots)
+	if err != nil {
+		return err
+	}
+	if len(segmentInfos) <= 0 {
+		return nil
+	}
+	for _, segmentInfo := range segmentInfos {
+		for _, baseOffset := range segmentInfo.baseOffsets {
+			for {
+				segmentPath := filepath.Join(f.dataDir, "slots", fmt.Sprintf("%d", segmentInfo.slot), "topics", segmentInfo.topic, "logs", fmt.Sprintf(fileFormat, baseOffset, logSuffix))
+				has, err := f.scanner.Scan(segmentPath, 0, func(data []byte) error {
+					_, err := w.Write(data)
+					return err
+				})
+				if err != nil {
+					return err
+				}
+				if !has {
+					break
+				}
+			}
+		}
+	}
+	return nil
 }
 
-func newSegmentInfo(slot int, topic string, baseOffsets []int64) *segmentInfo {
-	return &segmentInfo{
-		slot:        slot,
-		topic:       topic,
-		baseOffsets: baseOffsets,
+// RecoverSlotBackup 恢复备份
+func (f *FileDB) RecoverSlotBackup(reader io.Reader) error {
+	magicNumber := make([]byte, len(BackupMagicNumber))
+	_, err := reader.Read(magicNumber)
+	if err != nil {
+		return err
 	}
+	if !bytes.Equal(magicNumber, BackupMagicNumber[:]) {
+		return fmt.Errorf("BackupMagicNumber is error 期望:%x 实际:%x", BackupMagicNumber[:], magicNumber)
+	}
+
+	slots, err := lmproto.Binary(reader)
+	if err != nil {
+		f.Error("读取slots失败！", zap.Error(err))
+		return err
+	}
+	slotBitM := util.NewSlotBitMapWithBits(slots)
+	vaildSlots := slotBitM.GetVaildSlots()
+	if len(vaildSlots) == 0 {
+		return nil
+	}
+
+	err = f.recoverBaseData(reader, vaildSlots)
+	if err != nil {
+		return err
+	}
+	return f.recoverMessages(reader, vaildSlots)
+}
+
+func (f *FileDB) recoverBaseData(reader io.Reader, vaildSlots []uint32) error {
+
+	for i := 0; i < len(vaildSlots); i++ {
+		slot, keyN, err := f.readBaseDataHeader(reader)
+		if err != nil {
+			return err
+		}
+		err = f.db.Batch(func(t *bolt.Tx) error {
+			for j := 0; j < int(keyN); j++ {
+				key, err := lmproto.Binary(reader)
+				if err != nil {
+					return err
+				}
+				value, err := lmproto.Binary(reader)
+				if err != nil {
+					return err
+				}
+				b, err := f.getSlotBucket(slot, t)
+				if err != nil {
+					return err
+				}
+				err = b.Put(key, value)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *FileDB) recoverMessages(reader io.Reader, vaildSlots []uint32) error {
+	if err := f.checkAndBackupSlotDir(vaildSlots); err != nil {
+		f.Error("检查slot目录失败！", zap.Error(err))
+		return err
+	}
+	for {
+		err := f.recoverMessage(reader)
+		if err != nil {
+			if errors.Is(err, ErrorReadFinished) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+// 检查slot目录 如果有数据则备份原来数据（理论上不应该有数据，如果有的话则数据不知道那来的，管他三七二十一备份再说）
+func (f *FileDB) checkAndBackupSlotDir(vaildSlots []uint32) error {
+	slotRootDir := filepath.Join(f.dataDir, "slots")
+	for _, s := range vaildSlots {
+		slotDir := path.Join(slotRootDir, fmt.Sprintf("%d", s))
+		_, err := os.Stat(slotDir)
+		if err != nil && os.IsExist(err) {
+			err = os.Rename(slotDir, fmt.Sprintf("%s%s%s", slotDir, "_bak", fmt.Sprintf("%d", time.Now().Unix())))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (f *FileDB) recoverMessage(reader io.Reader) error {
+	magicNumber := make([]byte, len(MagicNumber))
+	_, err := reader.Read(magicNumber)
+	if err != nil {
+		if err == io.EOF {
+			return ErrorReadFinished
+		}
+		return nil
+	}
+
+	if !bytes.Equal(magicNumber, MagicNumber[:]) {
+		err = fmt.Errorf("消息开始魔法数错误 期望:%x 实际:%x", MagicNumber[:], magicNumber)
+		return err
+	}
+	logVersion := make([]byte, 1)
+	_, err = reader.Read(logVersion)
+	if err != nil {
+		return nil
+	}
+	var dataLen uint32
+	if err = binary.Read(reader, Encoding, &dataLen); err != nil {
+		return err
+	}
+	var offset int64
+	if err = binary.Read(reader, Encoding, &offset); err != nil {
+		return err
+	}
+	var appliIndex uint64
+	if err = binary.Read(reader, Encoding, &appliIndex); err != nil {
+		return err
+	}
+	data := make([]byte, dataLen)
+	if _, err = reader.Read(data); err != nil {
+		return err
+	}
+	endMagicNumber := make([]byte, len(EndMagicNumber))
+	if _, err = reader.Read(endMagicNumber); err != nil {
+		return err
+	}
+	if !bytes.Equal(endMagicNumber, EndMagicNumber[:]) {
+		err = fmt.Errorf("消息结尾魔法数错误 期望:%x 实际:%x", EndMagicNumber[:], endMagicNumber)
+		return err
+	}
+	var message = &Message{}
+	err = UnmarshalMessage(data, message)
+	if err != nil {
+		return err
+	}
+	message.AppliIndex = 0
+	if strings.TrimSpace(message.QueueUID) != "" {
+		_, err = f.AppendMessageOfUser(message)
+	} else {
+		_, err = f.AppendMessage(message)
+	}
+
+	return err
+
+}
+
+func (f *FileDB) readBaseDataHeader(reader io.Reader) (slot uint32, keyN int32, err error) {
+	magicNumber := make([]byte, len(BackupSlotMagicNumber))
+	_, err = reader.Read(magicNumber)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(magicNumber, BackupSlotMagicNumber[:]) {
+		err = fmt.Errorf("BackupSlotMagicNumber is error 期望:%x 实际:%x", BackupSlotMagicNumber[:], magicNumber)
+		return
+	}
+	slot, err = lmproto.Uint32(reader)
+	if err != nil {
+		return
+	}
+	keyN, err = lmproto.Int32(reader)
+	return
+}
+
+// AddNodeInFlightData 添加节点inflight数据
+func (f *FileDB) AddNodeInFlightData(data []*NodeInFlightDataModel) error {
+	if len(data) <= 0 {
+		return nil
+	}
+	return f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		return bucket.Put([]byte(f.nodeInFlightDataPrefix), []byte(util.ToJSON(data)))
+	})
+}
+
+// GetNodeInFlightData 获取投递给节点的inflight数据
+func (f *FileDB) GetNodeInFlightData() ([]*NodeInFlightDataModel, error) {
+	var data = make([]*NodeInFlightDataModel, 0)
+	err := f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+
+		value := bucket.Get([]byte(f.nodeInFlightDataPrefix))
+		if len(value) > 0 {
+			err := util.ReadJSONByByte(value, &data)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return data, err
+}
+
+// ClearNodeInFlightData ClearNodeInFlightData
+func (f *FileDB) ClearNodeInFlightData() error {
+	return f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		return bucket.Delete([]byte(f.nodeInFlightDataPrefix))
+	})
 }

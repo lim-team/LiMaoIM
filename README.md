@@ -39,12 +39,12 @@ This project is a simple and easy to use, powerful performance, simple design co
 <img  src="./docs/quick.gif"  alt="Quick start"/>
 
 
-[Get limaoim executable file](./INSTALL.md)
+<!-- [Get limaoim executable file](./INSTALL.md) -->
 
 #### Run the server (Note: Because it rewrites the Go network library, this library is temporarily not supported by Windows. Windows recommends using Docker to run.)
 
 ```
-$ ./limaoim  (or ./limaoim -c configs/config.toml)
+$ go run cmd/app/main.go -e mode=test 
 ```
 
 After the server is running, visit http://127.0.0.1:1516/api to view the api document

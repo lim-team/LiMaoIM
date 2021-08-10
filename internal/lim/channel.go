@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/lim-team/LiMaoIM/internal/db"
+	"github.com/lim-team/LiMaoIM/internal/lim/rpc"
 	"github.com/lim-team/LiMaoIM/pkg/limlog"
+	"github.com/lim-team/LiMaoIM/pkg/lmproto"
+	"github.com/lim-team/LiMaoIM/pkg/lmproxyproto"
+	"github.com/lim-team/LiMaoIM/pkg/util"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +41,6 @@ func (c *ChannelInfo) from(mp map[string]interface{}) {
 
 // NewChannelInfo NewChannelInfo
 func NewChannelInfo(channelID string, channelType uint8) *ChannelInfo {
-
 	return &ChannelInfo{
 		ChannelID:   channelID,
 		ChannelType: channelType,
@@ -70,6 +74,13 @@ func NewChannel(channelInfo *ChannelInfo, l *LiMao) *Channel {
 
 // LoadData load data
 func (c *Channel) LoadData() error {
+
+	if c.ChannelType == ChannelTypePerson && c.l.opts.IsFakeChannel(c.ChannelID) {
+		return nil
+	}
+	if err := c.l.systemUIDManager.LoadIfNeed(); err != nil { // 加载系统账号
+		return err
+	}
 	if err := c.initSubscribers(); err != nil { // 初始化订阅者
 		return err
 	}
@@ -201,7 +212,7 @@ func (c *Channel) Allow(uid string) bool {
 		whitelistLength++
 		return false
 	})
-	if whitelistLength > 0 {
+	if whitelistLength > 0 { // 如果白名单有内容，则只判断白名单
 		_, ok := c.whitelist.Load(uid)
 		return ok
 	}
@@ -218,9 +229,40 @@ func (c *Channel) PutMessage(m *Message) error {
 		subscribers = append(subscribers, c.GetAllSubscribers()...)
 	}
 	c.Debug("subscribers", zap.Any("subscribers", subscribers))
-	c.l.storeMessageToUserQueueIfNeed(m, subscribers)
-	c.l.conversationManager.PushMessage(m, subscribers)
-	c.l.startDeliveryMsg(m, subscribers...)
+
+	if c.l.opts.IsCluster {
+		// 计算订阅者所在节点，属于本节点的，就去做存储和投递的逻辑，不是本节点的订阅者则投递到订阅者所在节点
+		selfNodeSubscriber, otherNodeSubscriberList := c.calNodeSubscribers(subscribers)
+		if len(otherNodeSubscriberList) > 0 {
+			// 投递所属其他节点的消息
+			recvPacketData, _ := c.l.protocol.EncodePacket(&m.RecvPacket, lmproto.LatestVersion)
+			for _, nodeSubscribers := range otherNodeSubscriberList {
+				req := &rpc.ForwardRecvPacketReq{
+					No:             util.GenUUID(),
+					Users:          nodeSubscribers.subscribers,
+					Message:        recvPacketData,
+					FromDeviceFlag: int32(m.fromDeviceFlag),
+				}
+				// 开始投递节点数据
+				c.l.startDeliveryNodeData(&NodeInFlightData{
+					NodeInFlightDataModel: db.NodeInFlightDataModel{
+						No:     util.GenUUID(),
+						NodeID: nodeSubscribers.node.NodeID,
+						Req:    req,
+					},
+				})
+			}
+		}
+		if selfNodeSubscriber != nil && len(selfNodeSubscriber.subscribers) > 0 {
+			err := c.l.handleLocalSubscribersMessage(m, selfNodeSubscriber.subscribers)
+			if err != nil {
+				c.Error("处理本地订阅者失败！", zap.Error(err))
+				return err
+			}
+		}
+	} else {
+		c.l.handleLocalSubscribersMessage(m, subscribers)
+	}
 	return nil
 }
 
@@ -278,8 +320,8 @@ func (c *Channel) RemoveDenylist(uids []string) {
 
 // ---------- 白名单 ----------
 
-// AddWAllowlist 添加白名单
-func (c *Channel) AddWAllowlist(uids []string) {
+// AddAllowlist 添加白名单
+func (c *Channel) AddAllowlist(uids []string) {
 	if len(uids) == 0 {
 		return
 	}
@@ -306,4 +348,46 @@ func (c *Channel) RemoveAllowlist(uids []string) {
 	for _, uid := range uids {
 		c.whitelist.Delete(uid)
 	}
+}
+
+// NodeSubscribers 节点对应的订阅者
+type nodeSubscribers struct {
+	node        *lmproxyproto.Node
+	subscribers []string
+}
+
+// calSubscribersNodes 计算订阅者所在节点 TODO: 这里需要用对象池管理下
+func (c *Channel) calNodeSubscribers(subscribers []string) (localNode *nodeSubscribers, othersNodeSubbscribers []*nodeSubscribers) {
+	othersNodeSubbscribers = make([]*nodeSubscribers, 0, len(subscribers))
+	for _, subscriber := range subscribers {
+		nodeConfig := c.l.clusterManager.GetNode(subscriber)
+		if nodeConfig.NodeID == c.l.opts.NodeID {
+			if localNode == nil {
+				localNode = &nodeSubscribers{
+					node:        nodeConfig,
+					subscribers: []string{subscriber},
+				}
+			} else {
+				localNode.subscribers = append(localNode.subscribers, subscriber)
+			}
+			continue
+		}
+
+		var existNodeSub *nodeSubscribers
+		for _, nodeSub := range othersNodeSubbscribers {
+			if nodeSub.node.NodeID == nodeConfig.NodeID {
+				existNodeSub = nodeSub
+				break
+			}
+		}
+		if existNodeSub != nil {
+			existNodeSub.subscribers = append(existNodeSub.subscribers, subscriber)
+		} else {
+			othersNodeSubbscribers = append(othersNodeSubbscribers, &nodeSubscribers{
+				node:        nodeConfig,
+				subscribers: []string{subscriber},
+			})
+		}
+	}
+	return
 }

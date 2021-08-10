@@ -1,6 +1,6 @@
-FROM golang:1.16 as build
+FROM golang:1.15 as build
 
-ENV GOPROXY https://goproxy.io
+ENV GOPROXY https://goproxy.io,direct
 ENV GO111MODULE on
 
 
@@ -24,5 +24,4 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 WORKDIR /home
 COPY --from=build /go/release/app /home
 COPY --from=build /go/release/configs /home/configs
-
-CMD ["/home/app"]
+ENTRYPOINT ["/home/app"]

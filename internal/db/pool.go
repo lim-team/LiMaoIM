@@ -47,7 +47,7 @@ func NewPool(dataDir string, segmentMaxBytes int64) *Pool {
 }
 
 // GetSlot GetSlot
-func (p *Pool) GetSlot(slot uint) *Slot {
+func (p *Pool) GetSlot(slot uint32) *Slot {
 	v, ok := p.lruCache.Get(slot)
 	if ok {
 		return v.(*Slot)

@@ -13,7 +13,7 @@ import (
 
 // Slot Slot
 type Slot struct {
-	slot            uint
+	slot            uint32
 	segmentMaxBytes int64
 	slotDir         string
 	lruCache        *lru.Cache
@@ -23,7 +23,7 @@ type Slot struct {
 }
 
 // NewSlot NewSlot
-func NewSlot(dataDir string, slot uint, segmentMaxBytes int64) *Slot {
+func NewSlot(dataDir string, slot uint32, segmentMaxBytes int64) *Slot {
 	cache, err := lru.NewWithEvict(1000, func(key, value interface{}) {
 		topic := value.(*Topic)
 		topic.Close()

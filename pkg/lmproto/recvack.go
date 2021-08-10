@@ -19,7 +19,7 @@ func (s *RecvackPacket) GetPacketType() PacketType {
 }
 
 func (s *RecvackPacket) String() string {
-	return fmt.Sprintf("MessageId:%d MessageSeq:%d", s.MessageID, s.MessageSeq)
+	return fmt.Sprintf("Framer:%s MessageId:%d MessageSeq:%d", s.Framer.String(), s.MessageID, s.MessageSeq)
 }
 
 func decodeRecvack(frame Frame, data []byte, version uint8) (Frame, error) {

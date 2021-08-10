@@ -21,6 +21,7 @@ type Message struct {
 	ClientMsgNo string // 客户端唯一标示
 	Timestamp   int32  // 服务器消息时间戳(10位，到秒)
 	FromUID     string // 发送者UID
+	QueueUID    string // 放入到那个用户的队列内 如果QueueUID有值说明是写模式
 	ChannelID   string // 频道ID
 	ChannelType uint8  // 频道类型
 	Payload     []byte // 消息内容
@@ -33,7 +34,7 @@ func (m *Message) Offset() int64 {
 
 // Encode Encode
 func (m *Message) Encode() ([]byte, error) {
-	return MarshalMessage(m)
+	return MarshalMessage(m), nil
 }
 
 // Decode Decode
@@ -47,7 +48,7 @@ func (m *Message) GetAppliIndex() uint64 {
 }
 
 // MarshalMessage MarshalMessage
-func MarshalMessage(m *Message) ([]byte, error) {
+func MarshalMessage(m *Message) []byte {
 	enc := lmproto.NewEncoder()
 	enc.WriteByte(m.Header)
 	enc.WriteUint8(m.Version)
@@ -57,10 +58,11 @@ func MarshalMessage(m *Message) ([]byte, error) {
 	enc.WriteString(m.ClientMsgNo)
 	enc.WriteInt32(m.Timestamp)
 	enc.WriteString(m.FromUID)
+	enc.WriteString(m.QueueUID)
 	enc.WriteString(m.ChannelID)
 	enc.WriteUint8(m.ChannelType)
 	enc.WriteBytes(m.Payload)
-	return enc.Bytes(), nil
+	return enc.Bytes()
 }
 
 // UnmarshalMessage UnmarshalMessage
@@ -89,6 +91,9 @@ func UnmarshalMessage(data []byte, m *Message) error {
 		return err
 	}
 	if m.FromUID, err = dec.String(); err != nil {
+		return err
+	}
+	if m.QueueUID, err = dec.String(); err != nil {
 		return err
 	}
 	if m.ChannelID, err = dec.String(); err != nil {

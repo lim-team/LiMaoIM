@@ -36,12 +36,12 @@
 <img  src="./docs/quick.gif"  alt="快速入门"/>
 
 
-[获取limaoim执行文件](./INSTALL.md)
+<!-- [获取limaoim执行文件](./INSTALL.md) -->
 
 #### 运行服务端 （注意：因为重写了Go的网络库，此库Windows暂时不支持，Windows建议使用Docker运行。）
 
 ```
-$ ./limaoim  (或者 ./limaoim -c configs/config.toml)
+$ go run cmd/app/main.go -e mode=test (mode=test是测试模式 方便快速试玩 生产不要加此参数)
 ```
 
 服务器运行后，访问 http://127.0.0.1:1516/api 查看api文档
@@ -73,7 +73,7 @@ $ go run cmd/play/main.go -user=test2
 test2发送消息hello给test1
 
 ```
-$ >send hello to test1
+$ > send hello to test1
 ```
 
 

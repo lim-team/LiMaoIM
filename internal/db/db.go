@@ -4,9 +4,18 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/lim-team/LiMaoIM/internal/lim/rpc"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 )
 
+// NodeInFlightDataModel NodeInFlightDataModel
+type NodeInFlightDataModel struct {
+	No     string // 请求唯一编号
+	NodeID int32  // 接受消息的节点ID
+	Req    *rpc.ForwardRecvPacketReq
+}
+
+// Conversation Conversation
 type Conversation struct {
 	UID             string // User UID (user who belongs to the most recent session)
 	ChannelID       string // Conversation channel
@@ -39,6 +48,17 @@ type DB interface {
 	AddOrUpdateConversations(uid string, conversations []*Conversation) error
 	GetConversations(uid string) ([]*Conversation, error)
 
+	// 添加节点inflight数据
+	AddNodeInFlightData(data []*NodeInFlightDataModel) error
+	// 获取投递给节点的inflight数据
+	GetNodeInFlightData() ([]*NodeInFlightDataModel, error)
+	ClearNodeInFlightData() error
+
+	// BackupSlots 备份slots
+	BackupSlots(slots []byte, w io.Writer) error
+	// RecoverSlotBackup 恢复备份
+	RecoverSlotBackup(reader io.Reader) error
+
 	IMessageDB
 	IChannelDB
 	IDenyAndAllowlistStore
@@ -50,8 +70,12 @@ type IMessageDB interface {
 	GetUserNextMessageSeq(uid string) (uint32, error)
 	// AppendMessage 追加消息到频道队列  n 为追加的实际字节数
 	AppendMessage(m *Message) (n int, err error)
+
 	// AppendMessageOfUser 追加消息到用户队列
-	AppendMessageOfUser(uid string, m *Message) (int, error)
+	AppendMessageOfUser(m *Message) (int, error)
+	// UpdateMessageOfUserCursorIfNeed 更新用户消息队列的游标，用户读到的位置
+	UpdateMessageOfUserCursorIfNeed(uid string, offset uint32) error
+	// GetMessageOfUserCursor(uid string) (uint32, error)
 	// AppendMessageOfNotifyQueue 追加消息到通知队列
 	AppendMessageOfNotifyQueue(m *Message) error
 	GetMessagesOfNotifyQueue(count int) ([]*Message, error)
@@ -59,7 +83,10 @@ type IMessageDB interface {
 	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
 	// GetMessages 获取消息
 	GetMessages(channelID string, channelType uint8, offset uint32, limit uint64) ([]*Message, error)
+	GetLastMessages(channelID string, channelType uint8, endOffset uint32, limit uint64) ([]*Message, error)
+	GetMessagesOfUser(uid string, offset uint32, limit uint64) ([]*Message, error)
 	GetMessage(channelID string, channelType uint8, messageSeq uint32) (*Message, error)
+	DeleteMessages(channelID string, channelType uint8) error
 }
 
 // IChannelDB IChannelDB
@@ -72,6 +99,7 @@ type IChannelDB interface {
 	GetChannel(channelID string, channelType uint8) (map[string]interface{}, error)
 	// DeleteChannel 删除频道
 	DeleteChannel(channelID string, channelType uint8) error
+	DeleteChannelAndClearMessages(channelID string, channelType uint8) error
 	// ExistChannel 是否存在指定的频道
 	ExistChannel(channelID string, channelType uint8) (bool, error)
 	// AddSubscribers 添加订阅者

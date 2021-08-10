@@ -63,7 +63,7 @@ func (cm *ConversationManager) Stop() {
 	// Wait for the queue to complete
 	cm.queue.Wait()
 
-	cm.saveConversations()
+	cm.FlushConversations()
 
 }
 
@@ -95,7 +95,8 @@ func (cm *ConversationManager) saveloop() {
 		}
 		if needSync {
 			noSaveCount = 0
-			cm.saveConversations()
+			cm.FlushConversations()
+			needSync = false
 		}
 		select {
 		case uid := <-cm.needSaveChan:
@@ -180,8 +181,8 @@ func (cm *ConversationManager) newLRUCache() *lru.Cache {
 	return c
 }
 
-// 保存最近会话
-func (cm *ConversationManager) saveConversations() {
+// FlushConversations 同步最近会话
+func (cm *ConversationManager) FlushConversations() {
 
 	cm.needSaveConversationMapLock.RLock()
 	needSaveUIDs := make([]string, 0, len(cm.needSaveConversationMap))
@@ -267,11 +268,12 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 		conversation = conversationObj.(*db.Conversation)
 	}
 	cm.channelLock.Unlock(channelKey)
-	unreadCount := 0
-	if message.RedDot {
-		unreadCount = 1
-	}
+
 	if conversation == nil {
+		unreadCount := 0
+		if message.RedDot && message.FromUID != subscriber { //  message.FromUID != subscriber 自己发的消息不显示红点
+			unreadCount = 1
+		}
 		conversation = &db.Conversation{
 			UID:             subscriber,
 			ChannelID:       channelID,
@@ -286,8 +288,20 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 		cm.setNeedSave(subscriber)
 
 	} else {
-		if message.RedDot {
+		var modify = false
+		if message.RedDot && message.FromUID != subscriber { //  message.FromUID != subscriber 自己发的消息不显示红点
 			conversation.UnreadCount++
+			modify = true
+		}
+		conversation.Version = time.Now().UnixNano() / 1e6
+		if conversation.LastMsgSeq < message.MessageSeq { // 只有当前会话的messageSeq小于当前消息的messageSeq才更新
+			conversation.Timestamp = int64(message.Timestamp)
+			conversation.LastClientMsgNo = message.ClientMsgNo
+			conversation.LastMsgSeq = message.MessageSeq
+			conversation.LastMsgID = message.MessageID
+			modify = true
+		}
+		if modify {
 			cm.setNeedSave(subscriber)
 		}
 	}
@@ -315,7 +329,6 @@ func (cm *ConversationManager) GetConversations(uid string, version int64) []*db
 			conversationCache.Add(channelKey, conversation)
 
 		}
-		fmt.Println("conversations.Len()--->", conversations, uid)
 	}
 	for _, key := range conversationCache.Keys() {
 		conversationObj, ok := conversationCache.Get(key)

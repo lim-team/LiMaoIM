@@ -3,6 +3,7 @@ package lmproto
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"sync"
 )
 
@@ -76,16 +77,7 @@ func (d *Decoder) Uint8() (uint8, error) {
 
 // Int16 Int16
 func (d *Decoder) Int16() (int16, error) {
-	b := decTwo.Get().([]byte)
-	defer func() {
-		decTwo.Put(b)
-	}()
-	if n, err := d.r.Read(b); err != nil {
-		return 0, err
-	} else if n != 2 {
-		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 2", n)
-	}
-	return (int16(b[0]) << 8) | int16(b[1]), nil
+	return Int16(d.r)
 }
 
 // Uint16 Uint16
@@ -137,25 +129,12 @@ func (d *Decoder) Uint64() (uint64, error) {
 
 // Int32 Int32
 func (d *Decoder) Int32() (int32, error) {
-	b := decFour.Get().([]byte)
-	defer func() {
-		decFour.Put(b)
-	}()
-	if n, err := d.r.Read(b); err != nil {
-		return 0, err
-	} else if n != 4 {
-		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 4", n)
-	}
-	return (int32(b[0]) << 24) | (int32(b[1]) << 16) | (int32(b[2]) << 8) | int32(b[3]), nil
+	return Int32(d.r)
 }
 
 // Uint32 Uint32
 func (d *Decoder) Uint32() (uint32, error) {
-	if i, err := d.Int32(); err != nil {
-		return 0, err
-	} else {
-		return uint32(i), nil
-	}
+	return Uint32(d.r)
 }
 
 func (d *Decoder) String() (string, error) {
@@ -177,20 +156,7 @@ func (d *Decoder) StringAll() (string, error) {
 
 // Binary Binary
 func (d *Decoder) Binary() ([]byte, error) {
-	size, err := d.Int16()
-	if err != nil {
-		return nil, err
-	}
-	buf := make([]byte, size)
-	if size == 0 {
-		return buf, nil
-	}
-	if n, err := d.r.Read(buf); err != nil {
-		return nil, err
-	} else if n != int(size) {
-		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", n, size)
-	}
-	return buf, nil
+	return Binary(d.r)
 }
 
 // BinaryAll BinaryAll
@@ -226,4 +192,59 @@ func (d *Decoder) Variable() (uint64, error) {
 		}
 	}
 	return size, nil
+}
+
+// Int16 Int16
+func Int16(reader io.Reader) (int16, error) {
+	b := decTwo.Get().([]byte)
+	defer func() {
+		decTwo.Put(b)
+	}()
+	if n, err := reader.Read(b); err != nil {
+		return 0, err
+	} else if n != 2 {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 2", n)
+	}
+	return (int16(b[0]) << 8) | int16(b[1]), nil
+}
+
+// Binary Binary
+func Binary(reader io.Reader) ([]byte, error) {
+	size, err := Int16(reader)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, size)
+	if size == 0 {
+		return buf, nil
+	}
+	if n, err := reader.Read(buf); err != nil {
+		return nil, err
+	} else if n != int(size) {
+		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", n, size)
+	}
+	return buf, nil
+}
+
+// Int32 Int32
+func Int32(reader io.Reader) (int32, error) {
+	b := decFour.Get().([]byte)
+	defer func() {
+		decFour.Put(b)
+	}()
+	if n, err := reader.Read(b); err != nil {
+		return 0, err
+	} else if n != 4 {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 4", n)
+	}
+	return (int32(b[0]) << 24) | (int32(b[1]) << 16) | (int32(b[2]) << 8) | int32(b[3]), nil
+}
+
+// Uint32 Uint32
+func Uint32(reader io.Reader) (uint32, error) {
+	if i, err := Int32(reader); err != nil {
+		return 0, err
+	} else {
+		return uint32(i), nil
+	}
 }

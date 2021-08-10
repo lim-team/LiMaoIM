@@ -18,6 +18,15 @@ type conversationResp struct {
 	LastMessage *MessageResp `json:"last_message"` // 最后一条消息
 }
 
+// MessageRespSlice MessageRespSlice
+type MessageRespSlice []*MessageResp
+
+func (m MessageRespSlice) Len() int { return len(m) }
+
+func (m MessageRespSlice) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+
+func (m MessageRespSlice) Less(i, j int) bool { return m[i].MessageSeq < m[j].MessageSeq }
+
 // MessageResp 消息返回
 type MessageResp struct {
 	Header       MessageHeader `json:"header"`        // 消息头
@@ -44,7 +53,20 @@ func (m *MessageResp) from(messageD *db.Message) {
 	m.ClientMsgNo = messageD.ClientMsgNo
 	m.MessageSeq = messageD.MessageSeq
 	m.FromUID = messageD.FromUID
-	m.ChannelID = messageD.ChannelID
+	m.Timestamp = messageD.Timestamp
+
+	realChannelID := messageD.ChannelID
+	if messageD.ChannelType == ChannelTypePerson {
+		if strings.Contains(messageD.ChannelID, "@") {
+			channelIDs := strings.Split(messageD.ChannelID, "@")
+			for _, channelID := range channelIDs {
+				if messageD.FromUID != channelID {
+					realChannelID = channelID
+				}
+			}
+		}
+	}
+	m.ChannelID = realChannelID
 	m.ChannelType = messageD.ChannelType
 	m.Payload = messageD.Payload
 }
@@ -95,6 +117,7 @@ type syncUserConversationResp struct {
 	Timestamp       int64          `json:"timestamp"`          // 最后一次会话时间
 	LastMsgSeq      uint32         `json:"last_msg_seq"`       // 最后一条消息seq
 	LastClientMsgNo string         `json:"last_client_msg_no"` // 最后一次消息客户端编号
+	OffsetMsgSeq    int64          `json:"offset_msg_seq"`     // 偏移位的消息seq
 	Version         int64          `json:"version"`            // 数据版本
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
@@ -207,6 +230,12 @@ func (r blacklistReq) Check() error {
 	return nil
 }
 
+// ChannelDeleteReq 删除频道请求
+type ChannelDeleteReq struct {
+	ChannelID   string `json:"channel_id"`   // 频道ID
+	ChannelType uint8  `json:"channel_type"` // 频道类型
+}
+
 type whitelistReq struct {
 	ChannelID   string   `json:"channel_id"`   // 频道ID
 	ChannelType uint8    `json:"channel_type"` // 频道类型
@@ -226,9 +255,45 @@ func (r whitelistReq) Check() error {
 	return nil
 }
 
+type syncReq struct {
+	UID        string `json:"uid"`         // 用户uid
+	MessageSeq uint32 `json:"message_seq"` // 客户端最大消息序列号
+	Limit      int64  `json:"limit"`       // 消息数量限制
+}
+
+func (r syncReq) Check() error {
+	if strings.TrimSpace(r.UID) == "" {
+		return errors.New("用户uid不能为空！")
+	}
+	if r.MessageSeq < 0 {
+		return errors.New("最大序消息列号不能为空！")
+	}
+	if r.Limit < 0 {
+		return errors.New("limit不能为负数！")
+	}
+	return nil
+}
+
 type syncMessageResp struct {
-	OffsetMessageSeq uint32         `json:"offset_message_seq"` // 偏移序号
-	EndMessageSeq    uint32         `json:"end_message_seq"`    // 结束偏移量
-	More             int            `json:"more"`               // 是否还有更多 1.是 0.否
-	Messages         []*MessageResp `json:"messages"`           // 消息数据
+	MinMessageSeq uint32         `json:"min_message_seq"` // 开始序列号
+	MaxMessageSeq uint32         `json:"max_message_seq"` // 结束序列号
+	More          int            `json:"more"`            // 是否还有更多 1.是 0.否
+	Messages      []*MessageResp `json:"messages"`        // 消息数据
+}
+
+type syncackReq struct {
+	// 用户uid
+	UID string `json:"uid"`
+	// 最后一次同步的message_seq
+	LastMessageSeq uint32 `json:"last_message_seq"`
+}
+
+func (s syncackReq) Check() error {
+	if strings.TrimSpace(s.UID) == "" {
+		return errors.New("用户UID不能为空！")
+	}
+	if s.LastMessageSeq == 0 {
+		return errors.New("最后一次messageSeq不能为0！")
+	}
+	return nil
 }

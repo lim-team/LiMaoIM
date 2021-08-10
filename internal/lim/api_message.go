@@ -32,7 +32,60 @@ func NewMessageAPI(lim *LiMao) *MessageAPI {
 // Route route
 func (m *MessageAPI) Route(r *lmhttp.LMHttp) {
 	r.POST("/message/send", m.send)
-	r.POST("/message/sync", m.syncMessages)
+	// 消息同步(写模式)
+	r.POST("/message/sync", m.sync)
+
+	r.POST("/message/syncack", m.syncack)
+}
+
+// 消息同步
+func (m *MessageAPI) sync(c *lmhttp.Context) {
+	var req syncReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	messages, err := m.l.store.GetMessagesOfUser(req.UID, req.MessageSeq, uint64(req.Limit))
+	if err != nil {
+		m.Error("同步消息失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	resps := make([]*MessageResp, 0, len(messages))
+	if len(messages) > 0 {
+		for _, message := range messages {
+			resp := &MessageResp{}
+			resp.from(message)
+			resps = append(resps, resp)
+		}
+	}
+	c.JSON(http.StatusOK, resps)
+}
+
+// 同步回执
+func (m *MessageAPI) syncack(c *lmhttp.Context) {
+	var req syncackReq
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	err := m.l.store.UpdateMessageOfUserCursorIfNeed(req.UID, req.LastMessageSeq)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	c.ResponseOK()
+
 }
 
 func (m *MessageAPI) send(c *lmhttp.Context) {
@@ -117,22 +170,31 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		fromDeviceFlag: lmproto.SYSTEM,
 		Subscribers:    subscribers,
 	}
-	if !msg.NoPersist && !msg.SyncOnce {
-		_, err = m.l.store.AppendMessage(&db.Message{
-			Header:      lmproto.ToFixHeaderUint8(msg),
-			Setting:     msg.Setting.ToUint8(),
-			MessageID:   msg.MessageID,
-			MessageSeq:  messageSeq,
-			ClientMsgNo: msg.ClientMsgNo,
-			Timestamp:   msg.Timestamp,
-			FromUID:     msg.FromUID,
-			ChannelID:   fakeChannelID,
-			ChannelType: msg.ChannelType,
-			Payload:     msg.Payload,
-		})
+	messageDBModel := &db.Message{
+		Header:      lmproto.ToFixHeaderUint8(msg),
+		Setting:     msg.Setting.ToUint8(),
+		MessageID:   msg.MessageID,
+		MessageSeq:  messageSeq,
+		ClientMsgNo: msg.ClientMsgNo,
+		Timestamp:   msg.Timestamp,
+		FromUID:     msg.FromUID,
+		ChannelID:   fakeChannelID,
+		ChannelType: msg.ChannelType,
+		Payload:     msg.Payload,
+	}
+	if !msg.NoPersist && !msg.SyncOnce && !m.l.opts.IsTmpChannel(channelID) {
+		err = m.l.store.AppendMessage(messageDBModel)
 		if err != nil {
 			m.Error("Failed to save history message", zap.Error(err))
 			return errors.New("Failed to save history message")
+		}
+	}
+	if m.l.opts.WebhookOn() {
+		// Add a message to the notification queue, the data in this queue will be notified to third-party applications
+		err = m.l.store.AppendMessageOfNotifyQueue(messageDBModel)
+		if err != nil {
+			m.Error("添加消息到通知队列失败！", zap.Error(err))
+			return errors.New("添加消息到通知队列失败！")
 		}
 	}
 	// 将消息放入频道
@@ -142,40 +204,4 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		return errors.New("将消息放入频道内失败！")
 	}
 	return nil
-}
-
-func (m *MessageAPI) syncMessages(c *lmhttp.Context) {
-	var req struct {
-		UID              string `json:"uid"` // 当前登录用户的uid
-		ChannelID        string `json:"channel_id"`
-		ChannelType      uint8  `json:"channel_type"`
-		OffsetMessageSeq uint32 `json:"offset_message_seq"` // 偏移序号
-		EndMessageSeq    uint32 `json:"end_message_seq"`    // 结束偏移量
-		Limit            int    `json:"limit"`              // 每次同步数量限制
-		Reverse          int    `json:"reverse"`            // 是否反转查询
-	}
-	if err := c.BindJSON(&req); err != nil {
-		m.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
-		return
-	}
-
-	fakeChannelID := req.ChannelID
-	if req.ChannelType == ChannelTypePerson {
-		fakeChannelID = GetFakeChannelIDWith(req.UID, req.ChannelID)
-	}
-	messages, err := m.l.store.GetMessagesWithOptions(fakeChannelID, req.ChannelType, req.OffsetMessageSeq, uint64(req.Limit), req.Reverse == 1, req.EndMessageSeq)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	messageResps := make([]*MessageResp, 0, len(messages))
-	if len(messages) > 0 {
-		for _, message := range messages {
-			messageResp := &MessageResp{}
-			messageResp.from(message)
-			messageResps = append(messageResps, messageResp)
-		}
-	}
-	c.JSON(http.StatusOK, messageResps)
 }

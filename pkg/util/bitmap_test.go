@@ -88,3 +88,8 @@ func TestSlotsContains(t *testing.T) {
 	assert.Equal(t, true, SlotsContains(bm.GetBits(), bm3.GetBits()))
 
 }
+
+func TestGetSlot(t *testing.T) {
+	slot := GetSlotNum(256, "ca2ae87fdfe141dba2265ba8253e132c@ea3f305e17bd412c93580b93131e5a59")
+	assert.Equal(t, uint32(108), slot)
+}

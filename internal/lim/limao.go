@@ -5,13 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/lim-team/LiMaoIM/internal/lim/rpc"
+
 	"github.com/RussellLuo/timingwheel"
+	"github.com/lim-team/LiMaoIM/pkg/limlog"
 	"github.com/lim-team/LiMaoIM/pkg/lmproto"
 	"github.com/panjf2000/ants/v2"
 	"github.com/tangtaoit/limnet"
-	"github.com/tangtaoit/limnet/pkg/limlog"
+	linetlimglog "github.com/tangtaoit/limnet/pkg/limlog"
 	"github.com/tangtaoit/limnet/pkg/limutil"
 	"github.com/tangtaoit/limnet/pkg/pool/goroutine"
 	"go.uber.org/zap"
@@ -23,6 +28,8 @@ var (
 	ErrorDoCommandTimeout = errors.New("do command timeout")
 )
 
+// NewCluster NewCluster
+var NewCluster func(l *LiMao) IClusterManager // 创建一个分布式实现
 // LiMao core
 type LiMao struct {
 	opts *Options
@@ -34,20 +41,28 @@ type LiMao struct {
 	startCompleteC      chan struct{}
 	messagePool         *goroutine.Pool          // message goroutine pool
 	deliveryMsgPool     *goroutine.Pool          // Message delivery goroutine pool
+	eventPool           *goroutine.Pool          // 事件传递线程池
 	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
 	packetHandler       *PacketHandler           // Logic processor
 	waitGroupWrapper    *limutil.WaitGroupWrapper
 	monitor             *Monitor         // Data monitoring
+	clusterManager      IClusterManager  // cluster management
 	protocol            lmproto.Protocol //Protocol interface
 	messageRate         *rate.Limiter    // Message rate
 	store               Storage
 	channelManager      *ChannelManager
+	nodeRPCServer       *rpc.Server       // 节点rpc服务，与节点通讯用
 	apiServer           *APIServer        // api服务
 	retryQueue          *RetryQueue       // 重试队列
 	systemUIDManager    *SystemUIDManager // System uid management, system uid can send messages to everyone without any restrictions
 	conversationManager *ConversationManager
-	onlineStatusWebhook *OnlineStatusWebhook
 	datasource          IDatasource // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
+	onlineStatusWebhook *OnlineStatusWebhook
+	nodeInFlightQueue   *NodeInFlightQueue // 正在往节点投递的节点消息
+	nodeRemoteCall      *NodeRemoteCall
+
+	DoCommand         func(cmd *CMD) error // 执行命令（分布式副本之间执行命令）
+	startCompleteOnce sync.Once
 }
 
 // New New
@@ -68,7 +83,11 @@ func New(opts *Options) *LiMao {
 		panic(err)
 	}
 	l.store = NewStorage(l)
+	l.nodeInFlightQueue = NewNodeInFlightQueue(l)
 	l.channelManager = NewChannelManager(l)
+	if l.opts.IsCluster && NewCluster != nil {
+		l.clusterManager = NewCluster(l)
+	}
 	l.packetHandler = NewPacketHandler(l)
 	l.onlineStatusWebhook = NewOnlineStatusWebhook(l)
 	l.systemUIDManager = NewSystemUIDManager(l)
@@ -79,13 +98,21 @@ func New(opts *Options) *LiMao {
 	l.lnet = limnet.New(l, limnet.WithAddr(l.opts.Addr), limnet.WithWSAddr(l.opts.WSAddr), limnet.WithUnPacket(limUnpacket))
 	l.conversationManager = NewConversationManager(l)
 	if opts.Mode == TestMode {
+		linetlimglog.TestMode = true
 		limlog.TestMode = true
+	} else if opts.Mode == DebugMode {
+		gin.SetMode(gin.DebugMode)
+		limlog.SetLevel(zap.DebugLevel)
+		linetlimglog.SetLevel(zap.DebugLevel)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+		limlog.SetLevel(zap.InfoLevel)
+		linetlimglog.SetLevel(zap.InfoLevel)
 	}
+	l.nodeRemoteCall = NewNodeRemoteCall(l)
 
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: true}
-	l.messagePool, err = ants.NewPool(l.opts.MessagePoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		l.Error("messagePool error", zap.Error(err.(error)))
-	}))
+	l.messagePool, err = ants.NewPool(l.opts.MessagePoolSize, ants.WithOptions(options))
 	if err != nil {
 		panic(err)
 	}
@@ -95,8 +122,31 @@ func New(opts *Options) *LiMao {
 	if err != nil {
 		panic(err)
 	}
+	l.eventPool, err = ants.NewPool(l.opts.EventPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
+		fmt.Println("事件池panic->", err)
+	}))
+	if err != nil {
+		panic(err)
+	}
+	// 节点之间通讯服务
+	l.nodeRPCServer = rpc.NewServer(l.protocol, l.packetHandler, l.opts.NodeRPCAddr)
 
 	return l
+}
+
+// GetOptions GetOptions
+func (l *LiMao) GetOptions() *Options {
+	return l.opts
+}
+
+// GetStore GetStore
+func (l *LiMao) GetStore() Storage {
+	return l.store
+}
+
+// GetConversationManager GetConversationManager
+func (l *LiMao) GetConversationManager() *ConversationManager {
+	return l.conversationManager
 }
 
 // Start Start
@@ -105,27 +155,55 @@ func (l *LiMao) Start(startCompleteC ...chan struct{}) error {
 		l.startCompleteC = startCompleteC[0]
 	}
 
-	// conversation management is on
-	l.conversationManager.Start()
+	if l.opts.IsCluster {
+		err := l.clusterManager.Start()
+		if err != nil {
+			return err
+		}
+		l.clusterManager.LeaderUpdated(func(leaderID uint32) {
+			if leaderID != 0 {
+				l.startCompleteOnce.Do(func() {
+					l.ready()
+					if l.startCompleteC != nil {
+						go func() {
+							l.startCompleteC <- struct{}{}
+						}()
+					}
+				})
+			}
+		})
+	} else {
+		l.ready()
+		if l.startCompleteC != nil {
+			go func() {
+				l.startCompleteC <- struct{}{}
+			}()
+		}
 
+	}
+	return nil
+}
+
+func (l *LiMao) ready() {
+	l.nodeInFlightQueue.Start()
 	// Message polling notification to a third party
 	l.waitGroupWrapper.Wrap(func() {
 		l.notifyQueueLoop()
 	})
+	l.timingWheel.Start()
+
+	l.nodeRPCServer.Start()
+
+	// conversation management is on
+	l.conversationManager.Start()
 
 	l.waitGroupWrapper.Wrap(func() {
 		l.lnet.Run()
 	})
-
-	if l.startCompleteC != nil {
-		go func() {
-			l.startCompleteC <- struct{}{}
-		}()
-	}
 	//Run API service
 	l.apiServer.Start()
 	l.print()
-	return nil
+
 }
 
 func (l *LiMao) print() {
@@ -176,31 +254,29 @@ func (l *LiMao) OnPacket(c limnet.Conn, data []byte) (out []byte) {
 	// Upstream traffic statistics
 	l.monitor.UpstreamAdd(len(data))
 
-	l.messagePool.Submit(func() {
-		// 处理包
-		offset := 0
-		packets := make([]lmproto.Frame, 0)
-		for len(data) > offset {
-			packet, size, err := l.protocol.DecodePacket(data[offset:], c.Version())
-			if err != nil { //
-				l.Warn("Failed to decode the message", zap.Error(err))
-				c.Close()
-				return
-			}
-			packets = append(packets, packet)
-			l.monitor.UpstreamPacketInc() // Increasing total package
-			offset += size
-			if c.Status() == ConnStatusNoAuth.Int() && packet.GetPacketType() != lmproto.CONNECT {
-				l.Warn("The first package should be the connection package! The connection will be closed")
-				c.Close()
-				return
-			}
+	// 处理包
+	offset := 0
+	packets := make([]lmproto.Frame, 0)
+	for len(data) > offset {
+		packet, size, err := l.protocol.DecodePacket(data[offset:], c.Version())
+		if err != nil { //
+			l.Warn("Failed to decode the message", zap.Error(err))
+			c.Close()
+			return
+		}
+		packets = append(packets, packet)
+		l.monitor.UpstreamPacketInc() // Increasing total package
+		offset += size
+		if c.Status() == ConnStatusNoAuth.Int() && packet.GetPacketType() != lmproto.CONNECT {
+			l.Warn("The first package should be the connection package! The connection will be closed")
+			c.Close()
+			return
+		}
 
-		}
-		for _, packet := range packets {
-			l.handlePacket(c, packet)
-		}
-	})
+	}
+	for _, packet := range packets {
+		l.handlePacket(c, packet)
+	}
 
 	return
 }
@@ -208,8 +284,9 @@ func (l *LiMao) OnPacket(c limnet.Conn, data []byte) (out []byte) {
 func (l *LiMao) handlePacket(c limnet.Conn, packet lmproto.Frame) {
 	switch packet.GetPacketType() {
 	case lmproto.CONNECT: // connect
-		l.packetHandler.handleConnect(c, packet.(*lmproto.ConnectPacket))
-		break
+		l.messagePool.Submit(func() {
+			l.packetHandler.handleConnect(c, packet.(*lmproto.ConnectPacket))
+		})
 	case lmproto.PING: // ping
 		client := l.clientManager.Get(c.GetID())
 		if client == nil {
@@ -217,7 +294,6 @@ func (l *LiMao) handlePacket(c limnet.Conn, packet lmproto.Frame) {
 			return
 		}
 		l.packetHandler.handlePing(client)
-		break
 	case lmproto.SEND: //  send
 		client := l.clientManager.Get(c.GetID())
 		if client == nil {
@@ -228,8 +304,11 @@ func (l *LiMao) handlePacket(c limnet.Conn, packet lmproto.Frame) {
 		if err != nil {
 			l.Warn("messageRate wait fail", zap.Error(err))
 		}
-		client.clientSendPacketInc() // 客户端发送包统计
-		l.packetHandler.HandleSend(client, packet.(*lmproto.SendPacket))
+		l.messagePool.Submit(func() {
+			client.clientSendPacketInc() // 客户端发送包统计
+			l.packetHandler.HandleSend(client, packet.(*lmproto.SendPacket))
+		})
+
 		break
 	case lmproto.RECVACK:
 		client := l.clientManager.Get(c.GetID())
@@ -255,13 +334,33 @@ func (l *LiMao) onStop() error {
 			return err
 		}
 	}
+
+	l.timingWheel.Stop()
+	l.nodeInFlightQueue.Stop()
 	// conversation management is off
 	l.conversationManager.Stop()
 
-	err := l.store.Close()
+	if l.opts.IsCluster {
+		err := l.clusterManager.Stop()
+		if err != nil {
+			return err
+		}
+	} else {
+		err := l.store.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *LiMao) handleLocalSubscribersMessage(m *Message, subscribers []string) error {
+	subscriberSeqMap, err := l.storeMessageToUserQueueIfNeed(m, subscribers)
 	if err != nil {
 		return err
 	}
-
+	l.conversationManager.PushMessage(m, subscribers)
+	l.startDeliveryMsg(m, subscriberSeqMap, subscribers...)
 	return nil
 }

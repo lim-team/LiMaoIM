@@ -15,33 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	// ErrorNotData ErrorNotData
-	ErrorNotData = errors.New("no data")
-
-	// MagicNumber MagicNumber
-	MagicNumber = [2]byte{0x15, 0x16} // lm
-	// EndMagicNumber EndMagicNumber
-	EndMagicNumber = [1]byte{0x3}
-	// LogVersion log version
-	LogVersion = [1]byte{0x01}
-	// SnapshotMagicNumber SnapshotMagicNumber
-	SnapshotMagicNumber = [2]byte{0xb, 0xa} // ba
-	// EndSnapshotMagicNumber EndSnapshotMagicNumber
-	EndSnapshotMagicNumber = [1]byte{0xf}
-)
-
-const (
-	// OffsetSize OffsetSize
-	OffsetSize = 8
-	// LogDataLenSize LogDataLenSize
-	LogDataLenSize = 4
-	// AppliIndexSize AppliIndexSize
-	AppliIndexSize = 8
-	// LogMaxSize  Maximum size of a single log data
-	LogMaxSize = 1024 * 1024
-)
-
 // Segment Segment
 type Segment struct {
 	topicDir   string
@@ -56,6 +29,7 @@ type Segment struct {
 	position                 int64
 	indexIntervalBytes       int64
 	bytesSinceLastIndexEntry int64
+	totalSize                int64
 }
 
 // NewSegment NewSegment
@@ -82,6 +56,12 @@ func NewSegment(topicDir string, baseOffset int64) *Segment {
 	}
 
 	s.logWriter = s.logFile
+	fi, err := s.logFile.Stat()
+	if err != nil {
+		panic(err)
+	} else if fi.Size() > 0 {
+		s.totalSize = fi.Size()
+	}
 	return s
 }
 
@@ -318,10 +298,13 @@ func (s *Segment) Sync() error {
 
 // ReadLogs ReadLogs
 func (s *Segment) ReadLogs(offset int64, limit uint64, callback func(data []byte) error) error {
+	s.Lock()
+	defer s.Unlock()
 	offsetPosition, err := s.index.Lookup(offset)
 	if err != nil {
 		return err
 	}
+	s.Info("offsetPosition", zap.Int64("Offset", offsetPosition.Offset), zap.Int64("Offset", offsetPosition.Position))
 	var startPosition int64 = 0
 	if offsetPosition.Offset == offset {
 		startPosition = offsetPosition.Position
@@ -334,18 +317,26 @@ func (s *Segment) ReadLogs(offset int64, limit uint64, callback func(data []byte
 			return err
 		}
 	}
-	return s.ReadLogsAtPosition(startPosition, limit, callback)
+	s.Info("startPosition", zap.Int64("startPosition", startPosition))
+	return s.readLogsAtPosition(startPosition, limit, callback)
 
 }
 
+func (s *Segment) getFileSize() int64 {
+	if s.position == 0 {
+		return s.totalSize
+	}
+	return s.position
+}
+
 // ReadLogsAtPosition ReadLogsAtPosition
-func (s *Segment) ReadLogsAtPosition(position int64, limit uint64, callback func(data []byte) error) error {
+func (s *Segment) readLogsAtPosition(position int64, limit uint64, callback func(data []byte) error) error {
 	var count uint64 = 0
 	var data []byte
 	var startPosition = position
 	var err error
 	for {
-		if startPosition >= s.position || count >= limit {
+		if startPosition >= s.getFileSize() || count >= limit {
 			break
 		}
 		data, startPosition, err = s.readLogDataAtPosition(startPosition)
@@ -365,6 +356,8 @@ func (s *Segment) ReadLogsAtPosition(position int64, limit uint64, callback func
 
 // ReadAt ReadAt
 func (s *Segment) ReadAt(offset int64, log ILog) error {
+	s.Lock()
+	defer s.Unlock()
 	offsetPosition, err := s.index.Lookup(offset)
 	if err != nil {
 		return err
@@ -381,7 +374,8 @@ func (s *Segment) ReadAt(offset int64, log ILog) error {
 }
 
 func (s *Segment) readTargetPosition(startPosition int64, targetOffset int64) (int64, int64, error) {
-	if startPosition >= s.position {
+
+	if startPosition >= s.getFileSize() {
 		return 0, 0, ErrorNotData
 	}
 	resultOffset, dataLen, err := s.readAtPosition(startPosition)
@@ -429,6 +423,7 @@ func (s *Segment) readLogDataAtPosition(position int64) (data []byte, nextPositi
 	return data, nextPosition, nil
 }
 
+// 日志的固定header
 func (s *Segment) logFixHeaderLen() int64 {
 	return int64(len(MagicNumber) + len(LogVersion) + LogDataLenSize + OffsetSize + AppliIndexSize)
 }

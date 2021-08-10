@@ -14,17 +14,30 @@ enum Role {
 
 message Node {
     int32 nodeID = 1; // 节点ID
-    string  nodeAddr = 2; // 节点地址
-    string tcpAddr = 3;  // 节点tcp对外地址
-    string wsAddr = 4;  // 节点websocket对外地址
-    int32  weight = 5;  // 节点权重
-    Role role = 6;
-    bool join = 7; // 是否是新加入的节点
+    string  nodeRaftAddr = 2; // 节点Raft地址
+    string nodeAPIAddr = 3; // api地址 类似 http://xxx.xxx.xxx.xxx:8080
+    string nodeRPCAddr = 4; // 节点RPC通讯地址
+    string tcpAddr = 5;  // 节点tcp对外地址
+    string wsAddr = 6;  // 节点websocket对外地址
+    Role role = 7;
+    bool join = 8; // 是否是新加入的节点
    
 }
 
 message ConnectReq{
     int32 nodeID = 1; // 节点ID
+}
+
+message ConnectResp{
+    Status status = 1; // 状态 0.失败 1.成功
+    string reason = 2; // 原因
+    ProxyConfig proxyConfig = 3;
+}
+
+message ProxyConfig {
+    string uploadSlotBackupURL = 1; // 上传slot的url地址
+    string dowloadSlotBackupURL = 2; // 下载slot备份的地址
+    string removeSlotBackupURL = 3; // 移除slot备份的地址
 }
 
 message ConnectInfo {
@@ -57,6 +70,7 @@ message ClusterConfig {
     bytes exportWill = 11; // 将要导出的slots
     bytes exporting = 12; // 正在导出的slot（正在导出的slot将被锁定，不接受数据）
     ExportedList exportedList = 13; // 已导出的slot
+    int32 weight = 14; // 权重
 
 }
 

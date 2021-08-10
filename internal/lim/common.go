@@ -94,6 +94,8 @@ func GetOtherSideUIDByFakeChannelID(uid string, fakeChannelID string) string {
 }
 
 const (
+	// EventMsgOffline 离线消息
+	EventMsgOffline = "msg.offline"
 	// EventMsgNotify 消息通知（将所有消息通知到第三方程序）
 	EventMsgNotify = "msg.notify"
 	// EventOnlineStatus 用户在线状态

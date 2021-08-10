@@ -39,7 +39,8 @@ type Index struct {
 	limlog.Log
 	maxBytes    int64
 	maxEntryNum int64
-	warmEntries int64
+	warmEntries int64 // 热点日志条
+	totalSize   int64
 }
 
 // NewIndex NewIndex
@@ -65,8 +66,10 @@ func NewIndex(path string, baseOffset int64) *Index {
 		idx.Error("stat file failed", zap.Error(err))
 		panic(err)
 	} else if fi.Size() > 0 {
+		idx.totalSize = fi.Size()
 		idx.position = fi.Size()
 	}
+
 	if err := idx.file.Truncate(roundDown(idx.maxBytes, int64(idx.entrySize))); err != nil {
 		idx.Error("Truncate file failed", zap.Error(err))
 		panic(err)
@@ -75,8 +78,31 @@ func NewIndex(path string, baseOffset int64) *Index {
 	if err != nil {
 		panic(errors.New("mmap file failed"))
 	}
+	err = idx.resetPosistion()
+	if err != nil {
+		panic(err)
+	}
 
 	return idx
+}
+
+func (idx *Index) resetPosistion() error {
+	var position int64 = 0
+	for {
+		if position >= idx.totalSize {
+			break
+		}
+		entry := new(Entry)
+		if err := idx.readEntryAtPosition(entry, position); err != nil {
+			return err
+		}
+		if entry.RelativeOffset == 0 {
+			break
+		}
+		position += int64(idx.entrySize)
+	}
+	idx.position = position
+	return nil
 }
 
 // Append Append
@@ -268,7 +294,13 @@ func (idx *Index) compareIndexEntry(indexEntry OffsetPosition, target int64) int
 func (idx *Index) parseEntry(mid int64) OffsetPosition {
 	p := make([]byte, idx.entrySize)
 	position := mid * int64(idx.entrySize)
-	copy(p, idx.mmap[position:position+int64(idx.entrySize)])
+	copyEnd := position + int64(idx.entrySize)
+	if copyEnd > int64(len(idx.mmap)) {
+		return OffsetPosition{
+			Offset: idx.baseOffset,
+		}
+	}
+	copy(p, idx.mmap[position:copyEnd])
 	b := bytes.NewReader(p)
 	var entry = &Entry{}
 	err := binary.Read(b, Encoding, entry)

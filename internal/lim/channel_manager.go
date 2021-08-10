@@ -34,11 +34,12 @@ func NewChannelManager(l *LiMao) *ChannelManager {
 
 // GetChannel 获取频道
 func (cm *ChannelManager) GetChannel(channelID string, channelType uint8) (*Channel, error) {
+
 	if strings.HasSuffix(channelID, cm.l.opts.TmpChannelSuffix) {
 		return cm.GetTmpChannel(channelID, channelType)
 	}
 	if channelType == ChannelTypePerson {
-		return cm.GetPersonChannel(channelID, channelType), nil
+		return cm.GetPersonChannel(channelID, channelType)
 	}
 
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
@@ -117,19 +118,24 @@ func (cm *ChannelManager) CreateTmpChannel(channelID string, channelType uint8, 
 }
 
 // GetPersonChannel 创建临时频道
-func (cm *ChannelManager) GetPersonChannel(channelID string, channelType uint8) *Channel {
+func (cm *ChannelManager) GetPersonChannel(channelID string, channelType uint8) (*Channel, error) {
 	v, ok := cm.personChannelMap.Load(fmt.Sprintf("%s-%d", channelID, channelType))
 	if ok {
-		return v.(*Channel)
+		return v.(*Channel), nil
 	}
 	channel := NewChannel(NewChannelInfo(channelID, channelType), cm.l)
-	subscribers := strings.Split(channelID, "@")
-	for _, subscriber := range subscribers {
-		channel.AddSubscriber(subscriber)
+	err := channel.LoadData()
+	if err != nil {
+		return nil, err
 	}
-
+	if cm.l.opts.IsFakeChannel(channelID) { // fake个人频道
+		subscribers := strings.Split(channelID, "@")
+		for _, subscriber := range subscribers {
+			channel.AddSubscriber(subscriber)
+		}
+	}
 	cm.personChannelMap.Store(fmt.Sprintf("%s-%d", channelID, channelType), channel)
-	return channel
+	return channel, nil
 }
 
 // GetTmpChannel 获取临时频道

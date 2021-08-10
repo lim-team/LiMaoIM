@@ -1,10 +1,14 @@
 package lmhttp
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sendgrid/rest"
 )
 
 type LMHttp struct {
@@ -75,9 +79,59 @@ func (c *Context) ResponseData(status int, data interface{}) {
 	})
 }
 
-// HandlerFunc
+// ForwardWithBody 转发请求
+func (c *Context) ForwardWithBody(url string, body []byte) {
+	fmt.Println("url->", url)
+	fmt.Println("body->", string(body))
+	queryMap := map[string]string{}
+	values := c.Request.URL.Query()
+	if values != nil {
+		for key, value := range values {
+			queryMap[key] = value[0]
+		}
+	}
+	req := rest.Request{
+		Method:      rest.Method(strings.ToUpper(c.Request.Method)),
+		BaseURL:     url,
+		Headers:     c.CopyRequestHeader(c.Request),
+		Body:        body,
+		QueryParams: queryMap,
+	}
+
+	resp, err := rest.API(req)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	fmt.Println("result-code->", resp.StatusCode)
+	fmt.Println("result-body->", resp.Body)
+
+	c.Writer.WriteHeader(resp.StatusCode)
+	c.Writer.Write([]byte(resp.Body))
+}
+
+// Forward 转发请求
+func (c *Context) Forward(url string) {
+	bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
+	c.ForwardWithBody(url, bodyBytes)
+}
+
+// CopyRequestHeader 复制request的header参数
+func (c *Context) CopyRequestHeader(request *http.Request) map[string]string {
+	headerMap := map[string]string{}
+	for key, values := range request.Header {
+		if len(values) > 0 {
+			headerMap[key] = values[0]
+		}
+	}
+	return headerMap
+}
+
+// HandlerFunc HandlerFunc
 type HandlerFunc func(c *Context)
 
+// LMHttpHandler LMHttpHandler
 func (l *LMHttp) LMHttpHandler(handlerFunc HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		hc := l.pool.Get().(*Context)
@@ -88,20 +142,31 @@ func (l *LMHttp) LMHttpHandler(handlerFunc HandlerFunc) gin.HandlerFunc {
 	}
 }
 
+// Run Run
 func (l *LMHttp) Run(addr ...string) error {
 	return l.r.Run(addr...)
 }
 
+// POST POST
 func (l *LMHttp) POST(relativePath string, handlers ...HandlerFunc) {
 	l.r.POST(relativePath, l.handlersToGinHandleFunc(handlers)...)
 }
+
+// GET GET
 func (l *LMHttp) GET(relativePath string, handlers ...HandlerFunc) {
 	l.r.GET(relativePath, l.handlersToGinHandleFunc(handlers)...)
+}
+
+// DELETE DELETE
+func (l *LMHttp) DELETE(relativePath string, handlers ...HandlerFunc) {
+	l.r.DELETE(relativePath, l.handlersToGinHandleFunc(handlers)...)
 }
 
 func (l *LMHttp) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	l.r.ServeHTTP(w, req)
 }
+
+// Group Group
 func (l *LMHttp) Group(relativePath string, handlers ...HandlerFunc) {
 	l.r.Group(relativePath, l.handlersToGinHandleFunc(handlers)...)
 }

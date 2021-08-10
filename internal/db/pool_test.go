@@ -24,7 +24,7 @@ func TestPoolGetSlot(t *testing.T) {
 			MessageSeq: uint32(i + 1000),
 			FromUID:    fmt.Sprintf("test-%d", i),
 		}
-		_, err := p.GetSlot(uint(i)).GetTopic(fmt.Sprintf("topic-%d", i)).AppendLog(m)
+		_, err := p.GetSlot(uint32(i)).GetTopic(fmt.Sprintf("topic-%d", i)).AppendLog(m)
 		assert.NoError(t, err)
 	}
 }
